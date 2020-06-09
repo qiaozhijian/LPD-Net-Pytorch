@@ -19,9 +19,6 @@ from tensorboardX import SummaryWriter
 from torch.autograd import Variable
 from torch.backends import cudnn
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
-
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 
@@ -67,7 +64,9 @@ parser.add_argument('--resume', action='store_true',
                     help='If present, restore checkpoint and resume training')
 parser.add_argument('--dataset_folder', default='../../dataset/',
                     help='PointNetVlad Dataset Folder')
-
+parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
+                        help='Pretrained model path')
+pretrained_path
 FLAGS = parser.parse_args()
 cfg.BATCH_NUM_QUERIES = FLAGS.batch_num_queries
 #cfg.EVAL_BATCH_SIZE = 12
@@ -183,7 +182,16 @@ def train():
     else:
         starting_epoch = 0
 
-    model = nn.DataParallel(model)
+    if not os.path.exists(pretrained_path):
+        print("can't find pretrained model")
+    else:
+        print("load pretrained model")
+        net.load_state_dict(torch.load(pretrained_path), strict=False)
+
+    if torch.cuda.device_count() > 1:
+        net = nn.DataParallel(net)
+        # net = torch.nn.parallel.DistributedDataParallel(net)
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
 
     LOG_FOUT.write(cfg.cfg_str())
     LOG_FOUT.write("\n")

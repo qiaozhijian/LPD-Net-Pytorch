@@ -1,0 +1,3 @@
+python generate_training_tuples_refine.py
+python generate_test_sets.py
+python generate_training_tuples_baseline.py
