@@ -247,6 +247,8 @@ class PointNetVlad(nn.Module):
         elif featnet == "pointnet":
             self.point_net = PointNetfeat(num_points=num_points, global_feat=global_feat,
                                       feature_transform=feature_transform, max_pool=max_pool, emb_dims = emb_dims)
+        else:
+            print("featnet error")
         self.net_vlad = NetVLADLoupe(feature_size=1024, max_samples=num_points, cluster_size=64,
                                      output_dim=output_dim, gating=True, add_batch_norm=True,
                                      is_training=True)
