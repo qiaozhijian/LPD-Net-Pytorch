@@ -4,10 +4,8 @@ import math
 import os
 import socket
 import sys
-
 import numpy as np
 from sklearn.neighbors import KDTree, NearestNeighbors
-
 import config as cfg
 import evaluate
 import loss.pointnetvlad_loss as PNV_loss
@@ -21,8 +19,6 @@ from torch.backends import cudnn
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
-
-
 
 cudnn.enabled = True
 
@@ -91,6 +87,8 @@ cfg.LOSS_IGNORE_ZERO_BATCH = FLAGS.loss_ignore_zero_batch
 cfg.TRAIN_FILE = 'generating_queries/training_queries_baseline.pickle'
 cfg.TEST_FILE = 'generating_queries/test_queries_baseline.pickle'
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 cfg.LOG_DIR = FLAGS.log_dir
 if not os.path.exists(cfg.LOG_DIR):
     os.mkdir(cfg.LOG_DIR)
@@ -116,7 +114,6 @@ TRAINING_LATENT_VECTORS = []
 
 TOTAL_ITERATIONS = 0
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def get_bn_decay(batch):
@@ -157,7 +154,12 @@ def train():
 
     model = PNV.PointNetVlad(global_feat=True, feature_transform=True,
                              max_pool=False, output_dim=cfg.FEATURE_OUTPUT_DIM, num_points=cfg.NUM_POINTS)
-    model = model.to(device)
+    if torch.cuda.is_available():
+        model = model.cuda()
+        print("use cuda!")
+    else:
+        print("use cpu...")
+        model = model.cpu()
 
     parameters = filter(lambda p: p.requires_grad, model.parameters())
 
