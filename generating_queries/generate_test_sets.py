@@ -43,12 +43,10 @@ def check_in_test_set(northing, easting, points, x_width, y_width):
     return in_test_set
 ##########################################
 
-
 def output_to_file(output, filename):
     with open(filename, 'wb') as handle:
         pickle.dump(output, handle, protocol=pickle.HIGHEST_PROTOCOL)
     print("Done ", filename)
-
 
 def construct_query_and_database_sets(base_path, runs_folder, folders, pointcloud_fols, filename, p, output_name):
     database_trees = []
@@ -110,9 +108,8 @@ def construct_query_and_database_sets(base_path, runs_folder, folders, pointclou
                 # indices of the positive matches in database i of each query (key) in test set j
                 test_sets[j][key][i] = index[0].tolist()
 
-    output_to_file(database_sets, output_name+'_evaluation_database.pickle')
-    output_to_file(test_sets, output_name+'_evaluation_query.pickle')
-
+    output_to_file(database_sets,"copy/"+ output_name+'_evaluation_database.pickle')
+    output_to_file(test_sets,"copy/"+ output_name+'_evaluation_query.pickle')
 
 # Building database and query files for evaluation
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

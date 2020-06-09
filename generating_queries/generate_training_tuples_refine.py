@@ -55,9 +55,9 @@ def construct_query_dict(df_centroids, filename):
         query = df_centroids.iloc[i]["file"]
         positives = np.setdiff1d(ind_nn[i],[i]).tolist()
         list_neg = np.setdiff1d(df_centroids.index.values.tolist(),ind_r[i]).tolist()
-        # if len(list_neg) > 5000:
+        # if len(list_neg) > 4001:
         #     random.shuffle(list_neg)
-        #     list_neg = list_neg[:5000]
+        #     list_neg = list_neg[:4001]
         negatives = list_neg
         random.shuffle(negatives)
         queries[i] = {"query":query,
@@ -81,7 +81,6 @@ folders = []
 index_list = range(5,15)
 for index in index_list:
     folders.append(all_folders[index])
-
 print(folders)
 
 # Initialize pandas DataFrame
@@ -129,4 +128,4 @@ for folder in folders:
             df_train = df_train.append(row, ignore_index=True)
 
 print("Number of training submaps: "+str(len(df_train['file'])))
-construct_query_dict(df_train,"training_queries_refine.pickle")
+construct_query_dict(df_train,"copy/"+"training_queries_refine.pickle")

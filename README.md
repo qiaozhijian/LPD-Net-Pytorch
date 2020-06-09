@@ -21,7 +21,7 @@ cd generating_queries/
 python generate_training_tuples_baseline.py
 
 # For training tuples in our refined network
-python generate_training_tuples_refine.py
+# python generate_training_tuples_refine.py
 
 # For network evaluation
 python generate_test_sets.py
