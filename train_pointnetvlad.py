@@ -19,7 +19,7 @@ from torch.backends import cudnn
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 cudnn.enabled = True
 
 parser = argparse.ArgumentParser()
