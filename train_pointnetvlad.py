@@ -57,7 +57,7 @@ parser.add_argument('--triplet_use_best_positives', action='store_true',
                     help='If present, use best positives, otherwise use hardest positives')
 parser.add_argument('--resume', action='store_true',
                     help='If present, restore checkpoint and resume training')
-parser.add_argument('--dataset_folder', default='',
+parser.add_argument('--dataset_folder', default='./benchmark_datasets/',
                     help='PointNetVlad Dataset Folder')
 parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
