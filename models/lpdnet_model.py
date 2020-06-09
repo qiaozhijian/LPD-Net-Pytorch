@@ -102,6 +102,9 @@ class LPDNet(nn.Module):
             x = F.leaky_relu(self.bn3_lpd(self.conv3_lpd(x)),negative_slope=self.negative_slope).view(batch_size, -1, num_points) # [b,emb_dims,num]
         else:
             x = F.leaky_relu(self.conv3_lpd(x),negative_slope=self.negative_slope).view(batch_size, -1, num_points) # [b,emb_dims,num]
+        # [b,emb_dims,num]
+        x = x.unsqueeze(-1)
+        # [b,emb_dims,num,1]
         return x
 
 # TranformNet

@@ -19,7 +19,6 @@ from torch.backends import cudnn
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 cudnn.enabled = True
 
 parser = argparse.ArgumentParser()
@@ -62,43 +61,45 @@ parser.add_argument('--dataset_folder', default='',
                     help='PointNetVlad Dataset Folder')
 parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
+parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
+                        help='feature net')
 
-FLAGS = parser.parse_args()
-cfg.pretrained_path = FLAGS.pretrained_path
-cfg.BATCH_NUM_QUERIES = FLAGS.batch_num_queries
+args = parser.parse_args()
+cfg.pretrained_path = args.pretrained_path
+cfg.BATCH_NUM_QUERIES = args.batch_num_queries
 #cfg.EVAL_BATCH_SIZE = 12
 cfg.NUM_POINTS = 4096
-cfg.TRAIN_POSITIVES_PER_QUERY = FLAGS.positives_per_query
-cfg.TRAIN_NEGATIVES_PER_QUERY = FLAGS.negatives_per_query
-cfg.MAX_EPOCH = FLAGS.max_epoch
-cfg.BASE_LEARNING_RATE = FLAGS.learning_rate
-cfg.MOMENTUM = FLAGS.momentum
-cfg.OPTIMIZER = FLAGS.optimizer
-cfg.DECAY_STEP = FLAGS.decay_step
-cfg.DECAY_RATE = FLAGS.decay_rate
-cfg.MARGIN1 = FLAGS.margin_1
-cfg.MARGIN2 = FLAGS.margin_2
+cfg.TRAIN_POSITIVES_PER_QUERY = args.positives_per_query
+cfg.TRAIN_NEGATIVES_PER_QUERY = args.negatives_per_query
+cfg.MAX_EPOCH = args.max_epoch
+cfg.BASE_LEARNING_RATE = args.learning_rate
+cfg.MOMENTUM = args.momentum
+cfg.OPTIMIZER = args.optimizer
+cfg.DECAY_STEP = args.decay_step
+cfg.DECAY_RATE = args.decay_rate
+cfg.MARGIN1 = args.margin_1
+cfg.MARGIN2 = args.margin_2
 
-cfg.LOSS_FUNCTION = FLAGS.loss_function
-cfg.TRIPLET_USE_BEST_POSITIVES = FLAGS.triplet_use_best_positives
-cfg.LOSS_LAZY = FLAGS.loss_not_lazy
-cfg.LOSS_IGNORE_ZERO_BATCH = FLAGS.loss_ignore_zero_batch
+cfg.LOSS_FUNCTION = args.loss_function
+cfg.TRIPLET_USE_BEST_POSITIVES = args.triplet_use_best_positives
+cfg.LOSS_LAZY = args.loss_not_lazy
+cfg.LOSS_IGNORE_ZERO_BATCH = args.loss_ignore_zero_batch
 
 cfg.TRAIN_FILE = 'generating_queries/training_queries_baseline.pickle'
 cfg.TEST_FILE = 'generating_queries/test_queries_baseline.pickle'
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-cfg.LOG_DIR = FLAGS.log_dir
+cfg.LOG_DIR = args.log_dir
 if not os.path.exists(cfg.LOG_DIR):
     os.mkdir(cfg.LOG_DIR)
 LOG_FOUT = open(os.path.join(cfg.LOG_DIR, 'log_train.txt'), 'w')
-LOG_FOUT.write(str(FLAGS) + '\n')
+LOG_FOUT.write(str(args) + '\n')
 
-cfg.RESULTS_FOLDER = FLAGS.results_dir
+cfg.RESULTS_FOLDER = args.results_dir
 
-if FLAGS.dataset_folder != '':
-    cfg.DATASET_FOLDER = FLAGS.dataset_folder
+if args.dataset_folder != '':
+    cfg.DATASET_FOLDER = args.dataset_folder
 
 # Load dictionary of training queries
 TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
@@ -153,7 +154,7 @@ def train():
     #test_writer = SummaryWriter(os.path.join(cfg.LOG_DIR, 'test'))
 
     model = PNV.PointNetVlad(global_feat=True, feature_transform=True,
-                             max_pool=False, output_dim=cfg.FEATURE_OUTPUT_DIM, num_points=cfg.NUM_POINTS)
+                             max_pool=False, output_dim=cfg.FEATURE_OUTPUT_DIM, num_points=cfg.NUM_POINTS, featnet = args.featnet)
     if torch.cuda.is_available():
         model = model.cuda()
         print("use cuda!")
@@ -172,7 +173,7 @@ def train():
         optimizer = None
         exit(0)
 
-    if FLAGS.resume:
+    if args.resume:
         resume_filename = cfg.LOG_DIR + "checkpoint.pth.tar"
         print("Resuming From ", resume_filename)
         checkpoint = torch.load(resume_filename)

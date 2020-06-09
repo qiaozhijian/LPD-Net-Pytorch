@@ -226,7 +226,7 @@ class PointNetfeat(nn.Module):
         x = F.relu(self.bn4(self.conv4(x)))
         # print("x: ", x.shape) [B,128,num,1]
         x = self.bn5(self.conv5(x))
-        print("x: ", x.shape)
+        # print("x: ", x.shape) [B,emb_dims,num,1]
         if not self.max_pool:
             return x
         else:
@@ -240,21 +240,23 @@ class PointNetfeat(nn.Module):
 
 
 class PointNetVlad(nn.Module):
-    def __init__(self, num_points=2500, global_feat=True, feature_transform=False, max_pool=True, output_dim=256, emb_dims = 1024):
+    def __init__(self, num_points=2500, global_feat=True, feature_transform=False, max_pool=True, output_dim=256, emb_dims = 1024, featnet = "lpdnet"):
         super(PointNetVlad, self).__init__()
-        self.point_net = PointNetfeat(num_points=num_points, global_feat=global_feat,
+        if featnet == "lpdnet":
+            self.point_net = LPDNet(emb_dims=emb_dims, tfea=feature_transform)
+        elif featnet == "pointnet":
+            self.point_net = PointNetfeat(num_points=num_points, global_feat=global_feat,
                                       feature_transform=feature_transform, max_pool=max_pool, emb_dims = emb_dims)
-        # self.point_net = LPDNet(emb_dims=emb_dims, tfea=feature_transform)
         self.net_vlad = NetVLADLoupe(feature_size=1024, max_samples=num_points, cluster_size=64,
                                      output_dim=output_dim, gating=True, add_batch_norm=True,
                                      is_training=True)
 
     def forward(self, x):
-        print("input x: ",x.shape)
+        # print("input x: ",x.shape)
         x = self.point_net(x)
-        print("point_net x: ", x.shape)
+        # print("point_net x: ", x.shape)
         x = self.net_vlad(x)
-        print("net_vlad x: ", x.shape)
+        # print("net_vlad x: ", x.shape) [B, output_dim]
         return x
 
 
