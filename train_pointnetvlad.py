@@ -62,12 +62,13 @@ parser.add_argument('--triplet_use_best_positives', action='store_true',
                     help='If present, use best positives, otherwise use hardest positives')
 parser.add_argument('--resume', action='store_true',
                     help='If present, restore checkpoint and resume training')
-parser.add_argument('--dataset_folder', default='../../dataset/',
+parser.add_argument('--dataset_folder', default='',
                     help='PointNetVlad Dataset Folder')
 parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
-pretrained_path
+
 FLAGS = parser.parse_args()
+cfg.pretrained_path = FLAGS.pretrained_path
 cfg.BATCH_NUM_QUERIES = FLAGS.batch_num_queries
 #cfg.EVAL_BATCH_SIZE = 12
 cfg.NUM_POINTS = 4096
@@ -81,7 +82,6 @@ cfg.DECAY_STEP = FLAGS.decay_step
 cfg.DECAY_RATE = FLAGS.decay_rate
 cfg.MARGIN1 = FLAGS.margin_1
 cfg.MARGIN2 = FLAGS.margin_2
-cfg.FEATURE_OUTPUT_DIM = 256
 
 cfg.LOSS_FUNCTION = FLAGS.loss_function
 cfg.TRIPLET_USE_BEST_POSITIVES = FLAGS.triplet_use_best_positives
@@ -99,7 +99,8 @@ LOG_FOUT.write(str(FLAGS) + '\n')
 
 cfg.RESULTS_FOLDER = FLAGS.results_dir
 
-cfg.DATASET_FOLDER = FLAGS.dataset_folder
+if FLAGS.dataset_folder != '':
+    cfg.DATASET_FOLDER = FLAGS.dataset_folder
 
 # Load dictionary of training queries
 TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
@@ -182,14 +183,14 @@ def train():
     else:
         starting_epoch = 0
 
-    if not os.path.exists(pretrained_path):
+    if not os.path.exists(cfg.pretrained_path):
         print("can't find pretrained model")
     else:
         print("load pretrained model")
-        net.load_state_dict(torch.load(pretrained_path), strict=False)
+        model.load_state_dict(torch.load(cfg.pretrained_path), strict=False)
 
     if torch.cuda.device_count() > 1:
-        net = nn.DataParallel(net)
+        model = nn.DataParallel(model)
         # net = torch.nn.parallel.DistributedDataParallel(net)
         print("Let's use", torch.cuda.device_count(), "GPUs!")
 
