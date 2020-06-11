@@ -7,6 +7,8 @@ OUTPUT_FILE = "results/results.txt"
 LOG_DIR = 'log/'
 MODEL_FILENAME = "model.ckpt"
 
+PRETRAINED_MODEL = "./pretrained/lpd.t7"
+
 DATASET_FOLDER = '../benchmark_datasets/'
 
 # TRAIN

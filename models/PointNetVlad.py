@@ -68,7 +68,9 @@ class NetVLADLoupe(nn.Module):
         vlad = vlad - a
 
         vlad = F.normalize(vlad, dim=1, p=2)
-        vlad = vlad.view((-1, self.cluster_size * self.feature_size))
+        # print(vlad.shape,self.cluster_size,self.feature_size,self.cluster_size * self.feature_size)
+        # 这里用view报错，跟contiguous有关系
+        vlad = vlad.reshape((-1, self.cluster_size * self.feature_size))
         vlad = F.normalize(vlad, dim=1, p=2)
 
         vlad = torch.matmul(vlad, self.hidden1_weights)
@@ -240,16 +242,18 @@ class PointNetfeat(nn.Module):
 
 
 class PointNetVlad(nn.Module):
-    def __init__(self, num_points=2500, global_feat=True, feature_transform=False, max_pool=True, output_dim=256, emb_dims = 1024, featnet = "lpdnet"):
+    def __init__(self, num_points=4096, global_feat=True, feature_transform=False, max_pool=False, output_dim=256, emb_dims = 1024, featnet = "lpdnet"):
         super(PointNetVlad, self).__init__()
         if featnet == "lpdnet":
+            print("use lpdnet")
             self.point_net = LPDNet(emb_dims=emb_dims, tfea=feature_transform)
         elif featnet == "pointnet":
+            print("use pointnet")
             self.point_net = PointNetfeat(num_points=num_points, global_feat=global_feat,
                                       feature_transform=feature_transform, max_pool=max_pool, emb_dims = emb_dims)
         else:
             print("featnet error")
-        self.net_vlad = NetVLADLoupe(feature_size=1024, max_samples=num_points, cluster_size=64,
+        self.net_vlad = NetVLADLoupe(feature_size=emb_dims, max_samples=num_points, cluster_size=64,
                                      output_dim=output_dim, gating=True, add_batch_norm=True,
                                      is_training=True)
 

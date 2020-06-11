@@ -16,6 +16,7 @@ from loading_pointclouds import *
 from tensorboardX import SummaryWriter
 from torch.autograd import Variable
 from torch.backends import cudnn
+from tqdm import tqdm
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
@@ -39,6 +40,8 @@ parser.add_argument('--momentum', type=float, default=0.9,
                     help='Initial learning rate [default: 0.9]')
 parser.add_argument('--optimizer', default='adam',
                     help='adam or momentum [default: adam]')
+parser.add_argument('--num_points', type=int, default=4096,
+                    help='num_points [default: 4096]')
 parser.add_argument('--decay_step', type=int, default=200000,
                     help='Decay step for lr decay [default: 200000]')
 parser.add_argument('--decay_rate', type=float, default=0.7,
@@ -63,64 +66,33 @@ parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
 parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
                         help='feature net')
+parser.add_argument('--emb_dims', type=int, default=1024)
 
 args = parser.parse_args()
-cfg.pretrained_path = args.pretrained_path
-cfg.BATCH_NUM_QUERIES = args.batch_num_queries
-#cfg.EVAL_BATCH_SIZE = 12
-cfg.NUM_POINTS = 4096
-cfg.TRAIN_POSITIVES_PER_QUERY = args.positives_per_query
-cfg.TRAIN_NEGATIVES_PER_QUERY = args.negatives_per_query
-cfg.MAX_EPOCH = args.max_epoch
-cfg.BASE_LEARNING_RATE = args.learning_rate
-cfg.MOMENTUM = args.momentum
-cfg.OPTIMIZER = args.optimizer
-cfg.DECAY_STEP = args.decay_step
-cfg.DECAY_RATE = args.decay_rate
-cfg.MARGIN1 = args.margin_1
-cfg.MARGIN2 = args.margin_2
-
-cfg.LOSS_FUNCTION = args.loss_function
-cfg.TRIPLET_USE_BEST_POSITIVES = args.triplet_use_best_positives
-cfg.LOSS_LAZY = args.loss_not_lazy
-cfg.LOSS_IGNORE_ZERO_BATCH = args.loss_ignore_zero_batch
-
-cfg.TRAIN_FILE = 'generating_queries/training_queries_baseline.pickle'
-cfg.TEST_FILE = 'generating_queries/test_queries_baseline.pickle'
+cfg.DATASET_FOLDER=args.dataset_folder
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-cfg.LOG_DIR = args.log_dir
-if not os.path.exists(cfg.LOG_DIR):
-    os.mkdir(cfg.LOG_DIR)
-LOG_FOUT = open(os.path.join(cfg.LOG_DIR, 'log_train.txt'), 'w')
+if not os.path.exists(args.log_dir):
+    os.mkdir(args.log_dir)
+LOG_FOUT = open(os.path.join(args.log_dir, 'log_train.txt'), 'w')
 LOG_FOUT.write(str(args) + '\n')
-
-cfg.RESULTS_FOLDER = args.results_dir
-
-if args.dataset_folder != '':
-    cfg.DATASET_FOLDER = args.dataset_folder
 
 # Load dictionary of training queries
 TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
 TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
 
-cfg.BN_INIT_DECAY = 0.5
-cfg.BN_DECAY_DECAY_RATE = 0.5
-BN_DECAY_DECAY_STEP = float(cfg.DECAY_STEP)
-cfg.BN_DECAY_CLIP = 0.99
+BN_DECAY_DECAY_STEP = float(args.decay_step)
 
 HARD_NEGATIVES = {}
 TRAINING_LATENT_VECTORS = []
 
 TOTAL_ITERATIONS = 0
 
-
-
 def get_bn_decay(batch):
     bn_momentum = cfg.BN_INIT_DECAY * \
         (cfg.BN_DECAY_DECAY_RATE **
-         (batch * cfg.BATCH_NUM_QUERIES // BN_DECAY_DECAY_STEP))
+         (batch * args.batch_num_queries // BN_DECAY_DECAY_STEP))
     return min(cfg.BN_DECAY_CLIP, 1 - bn_momentum)
 
 
@@ -133,7 +105,7 @@ def log_string(out_str):
 
 
 def get_learning_rate(epoch):
-    learning_rate = cfg.BASE_LEARNING_RATE * ((0.9) ** (epoch // 5))
+    learning_rate = args.learning_rate * ((0.9) ** (epoch // 5))
     learning_rate = max(learning_rate, 0.00001)  # CLIP THE LEARNING RATE!
     return learning_rate
 
@@ -144,17 +116,17 @@ def train():
     #tf.summary.scalar('bn_decay', bn_decay)
 
     #loss = lazy_quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg_vec, MARGIN1, MARGIN2)
-    if cfg.LOSS_FUNCTION == 'quadruplet':
+    if args.loss_function == 'quadruplet':
         loss_function = PNV_loss.quadruplet_loss
     else:
         loss_function = PNV_loss.triplet_loss_wrapper
     learning_rate = get_learning_rate(0)
 
-    train_writer = SummaryWriter(os.path.join(cfg.LOG_DIR, 'train'))
-    #test_writer = SummaryWriter(os.path.join(cfg.LOG_DIR, 'test'))
+    train_writer = SummaryWriter(os.path.join(args.log_dir, 'train'))
+    #test_writer = SummaryWriter(os.path.join(args.log_dir, 'test'))
 
-    model = PNV.PointNetVlad(global_feat=True, feature_transform=True,
-                             max_pool=False, output_dim=cfg.FEATURE_OUTPUT_DIM, num_points=cfg.NUM_POINTS, featnet = args.featnet)
+    model = PNV.PointNetVlad(feature_transform=False, num_points=args.num_points, featnet = args.featnet, emb_dims=args.emb_dims)
+
     if torch.cuda.is_available():
         model = model.cuda()
         print("use cuda!")
@@ -164,17 +136,17 @@ def train():
 
     parameters = filter(lambda p: p.requires_grad, model.parameters())
 
-    if cfg.OPTIMIZER == 'momentum':
+    if args.optimizer == 'momentum':
         optimizer = torch.optim.SGD(
-            parameters, learning_rate, momentum=cfg.MOMENTUM)
-    elif cfg.OPTIMIZER == 'adam':
+            parameters, learning_rate, momentum=args.momentum)
+    elif args.optimizer == 'adam':
         optimizer = torch.optim.Adam(parameters, learning_rate)
     else:
         optimizer = None
         exit(0)
 
     if args.resume:
-        resume_filename = cfg.LOG_DIR + "checkpoint.pth.tar"
+        resume_filename = args.log_dir + "checkpoint.pth.tar"
         print("Resuming From ", resume_filename)
         checkpoint = torch.load(resume_filename)
         saved_state_dict = checkpoint['state_dict']
@@ -186,11 +158,11 @@ def train():
     else:
         starting_epoch = 0
 
-    if not os.path.exists(cfg.pretrained_path):
+    if not os.path.exists(args.pretrained_path):
         print("can't find pretrained model")
     else:
         print("load pretrained model")
-        model.load_state_dict(torch.load(cfg.pretrained_path), strict=False)
+        model.load_state_dict(torch.load(args.pretrained_path), strict=False)
 
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
@@ -201,9 +173,8 @@ def train():
     LOG_FOUT.write("\n")
     LOG_FOUT.flush()
 
-    for epoch in range(starting_epoch, cfg.MAX_EPOCH):
-        print(epoch)
-        print()
+    for epoch in range(starting_epoch, args.max_epoch):
+        print("epoch: ",epoch)
         log_string('**** EPOCH %03d ****' % (epoch))
         sys.stdout.flush()
 
@@ -231,23 +202,23 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
     np.random.shuffle(train_file_idxs)
 
-    for i in range(len(train_file_idxs)//cfg.BATCH_NUM_QUERIES):
+    for i in tqdm(range(len(train_file_idxs)//args.batch_num_queries)):
         # for i in range (5):
         batch_keys = train_file_idxs[i *
-                                     cfg.BATCH_NUM_QUERIES:(i+1)*cfg.BATCH_NUM_QUERIES]
+                                     args.batch_num_queries:(i+1)*args.batch_num_queries]
         q_tuples = []
 
         faulty_tuple = False
         no_other_neg = False
-        for j in range(cfg.BATCH_NUM_QUERIES):
-            if (len(TRAINING_QUERIES[batch_keys[j]]["positives"]) < cfg.TRAIN_POSITIVES_PER_QUERY):
+        for j in range(args.batch_num_queries):
+            if (len(TRAINING_QUERIES[batch_keys[j]]["positives"]) < args.positives_per_query):
                 faulty_tuple = True
                 break
 
             # no cached feature vectors
             if (len(TRAINING_LATENT_VECTORS) == 0):
                 q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], args.positives_per_query, args.negatives_per_query,
                                     TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
@@ -262,7 +233,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                     query, negatives, num_to_take)
                 print(hard_negs)
                 q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], args.positives_per_query, args.negatives_per_query,
                                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
@@ -278,12 +249,12 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                     HARD_NEGATIVES[batch_keys[j]], hard_negs))
                 print('hard', hard_negs)
                 q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], args.positives_per_query, args.negatives_per_query,
                                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
 
-            if (q_tuples[j][3].shape[0] != cfg.NUM_POINTS):
+            if (q_tuples[j][3].shape[0] != args.num_points):
                 no_other_neg = True
                 break
 
@@ -323,34 +294,46 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
 
         output_queries, output_positives, output_negatives, output_other_neg = run_model(
             model, queries, positives, negatives, other_neg)
-        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, cfg.MARGIN_1, cfg.MARGIN_2, use_min=cfg.TRIPLET_USE_BEST_POSITIVES, lazy=cfg.LOSS_LAZY, ignore_zero_loss=cfg.LOSS_IGNORE_ZERO_BATCH)
+        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, args.margin_1, args.margin_2, use_min=args.triplet_use_best_positives, lazy=args.loss_not_lazy, ignore_zero_loss=args.loss_ignore_zero_batch)
         loss.backward()
         optimizer.step()
 
         log_string('batch loss: %f' % loss)
         train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
-        TOTAL_ITERATIONS += cfg.BATCH_NUM_QUERIES
+        TOTAL_ITERATIONS += args.batch_num_queries
 
         # EVALLLL
 
-        if (epoch > 5 and i % (1400 // cfg.BATCH_NUM_QUERIES) == 29):
+        if (epoch > 5 and i % (1400 // args.batch_num_queries) == 29):
             TRAINING_LATENT_VECTORS = get_latent_vectors(
                 model, TRAINING_QUERIES)
             print("Updated cached feature vectors")
 
-        if (i % (6000 // cfg.BATCH_NUM_QUERIES) == 101):
+        if (i % (6000 // args.batch_num_queries) == 101):
             if isinstance(model, nn.DataParallel):
                 model_to_save = model.module
             else:
                 model_to_save = model
-            save_name = cfg.LOG_DIR + cfg.MODEL_FILENAME
-            torch.save({
-                'epoch': epoch,
-                'iter': TOTAL_ITERATIONS,
-                'state_dict': model_to_save.state_dict(),
-                'optimizer': optimizer.state_dict(),
-            },
-                save_name)
+            save_name = args.log_dir + cfg.MODEL_FILENAME
+
+            if torch.cuda.device_count() > 1:
+                torch.save({
+                    'epoch': epoch,
+                    'iter': TOTAL_ITERATIONS,
+                    'state_dict': model_to_save.module.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                },
+                    save_name)
+            else:
+                torch.save({
+                    'epoch': epoch,
+                    'iter': TOTAL_ITERATIONS,
+                    'state_dict': model_to_save.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                },
+                    save_name)
+
+
             print("Model Saved As " + save_name)
 
 
@@ -391,8 +374,8 @@ def get_random_hard_negatives(query_vec, random_negs, num_to_take):
 def get_latent_vectors(model, dict_to_process):
     train_file_idxs = np.arange(0, len(dict_to_process.keys()))
 
-    batch_num = cfg.BATCH_NUM_QUERIES * \
-        (1 + cfg.TRAIN_POSITIVES_PER_QUERY + cfg.TRAIN_NEGATIVES_PER_QUERY + 1)
+    batch_num = args.batch_num_queries * \
+        (1 + args.positives_per_query + args.negatives_per_query + 1)
     q_output = []
 
     model.eval()
@@ -459,7 +442,7 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
     other_neg_tensor = torch.from_numpy(other_neg).float()
     feed_tensor = torch.cat(
         (queries_tensor, positives_tensor, negatives_tensor, other_neg_tensor), 1)
-    feed_tensor = feed_tensor.view((-1, 1, cfg.NUM_POINTS, 3))
+    feed_tensor = feed_tensor.view((-1, 1, args.num_points, 3))
     feed_tensor.requires_grad_(require_grad)
     feed_tensor = feed_tensor.to(device)
     if require_grad:
@@ -467,9 +450,9 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
     else:
         with torch.no_grad():
             output = model(feed_tensor)
-    output = output.view(cfg.BATCH_NUM_QUERIES, -1, cfg.FEATURE_OUTPUT_DIM)
+    output = output.view(args.batch_num_queries, -1, cfg.FEATURE_OUTPUT_DIM)
     o1, o2, o3, o4 = torch.split(
-        output, [1, cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY, 1], dim=1)
+        output, [1, args.positives_per_query, args.negatives_per_query, 1], dim=1)
 
     return o1, o2, o3, o4
 

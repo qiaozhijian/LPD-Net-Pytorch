@@ -8,7 +8,7 @@ from tqdm import tqdm
 import gc
 
 class LPDNet(nn.Module):
-    def __init__(self,emb_dims=512, use_mFea=False,t3d=False,tfea=False,negative_slope=0.0):
+    def __init__(self,emb_dims=512, use_mFea=False,t3d=False,tfea=False,negative_slope=1e-2):
         super(LPDNet, self).__init__()
         self.negative_slope = negative_slope
         self.use_mFea= use_mFea
@@ -50,9 +50,10 @@ class LPDNet(nn.Module):
             self.conv2_lpd = nn.Conv1d(64, 64, kernel_size=1, bias=True)
             self.conv3_lpd = nn.Conv1d(512, self.emb_dims, kernel_size=1, bias=True)
 
-    # input x: # [B,num_dims,num]
-    # output x: # [b,emb_dims,num]
+    # input x: # [B,1,num,num_dims]
+    # output x: # [b,emb_dims,num,1]
     def forward(self, x):
+        x=torch.squeeze(x,dim=1).transpose(2, 1) # [B,num_dims,num]
         batch_size, num_dims, num_points = x.size()
         # 单独对坐标进行T-Net旋转
         if num_dims > 3 or self.use_mFea:
@@ -110,7 +111,7 @@ class LPDNet(nn.Module):
 # TranformNet
 # input x [B,num_dims,num]
 class TranformNet(nn.Module):
-    def __init__(self, k=3):
+    def __init__(self, k=3, negative_slope=1e-2):
         super(TranformNet, self).__init__()
         self.conv1 = torch.nn.Conv1d(k, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
@@ -118,7 +119,7 @@ class TranformNet(nn.Module):
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, k * k)
-        self.relu = nn.LeakyReLU(negative_slope=self.negative_slope)
+        self.relu = nn.LeakyReLU(negative_slope=negative_slope)
 
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(128)
@@ -193,8 +194,8 @@ class LPD(nn.Module):
         super(LPD, self).__init__()
         self.emb_dims = args.emb_dims
         self.num_points = args.num_points
-        self.negative_slope = 0.2
-        self.emb_nn = LPDNet(args,negative_slope = self.negative_slope)
+        self.negative_slope = 1e-2
+        self.emb_nn = LPDNet(negative_slope = self.negative_slope)
         self.cycle = args.cycle
     def forward(self, *input):
         # [B,3,num]
