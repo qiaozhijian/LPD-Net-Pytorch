@@ -22,6 +22,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 cudnn.enabled = True
 
+# os.environ['CUDA_LAUNCH_BLOCKING']="1"
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log/', help='Log dir [default: log]')
 parser.add_argument('--results_dir', default='results/',
@@ -32,7 +34,7 @@ parser.add_argument('--negatives_per_query', type=int, default=18,
                     help='Number of definite negatives in each training tuple [default: 18]')
 parser.add_argument('--max_epoch', type=int, default=20,
                     help='Epoch to run [default: 20]')
-parser.add_argument('--batch_num_queries', type=int, default=2,
+parser.add_argument('--batch_num_queries', type=int, default=1,
                     help='Batch Size during training [default: 2]')
 parser.add_argument('--learning_rate', type=float, default=0.000005,
                     help='Initial learning rate [default: 0.000005]')
@@ -66,6 +68,8 @@ parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
 parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
                         help='feature net')
+parser.add_argument('--fstn', action='store_true', default=False,
+                        help='feature transform')
 parser.add_argument('--emb_dims', type=int, default=1024)
 
 args = parser.parse_args()
@@ -109,6 +113,10 @@ def get_learning_rate(epoch):
     learning_rate = max(learning_rate, 0.00001)  # CLIP THE LEARNING RATE!
     return learning_rate
 
+def inplace_relu(m):
+    classname = m.__class__.__name__
+    if classname.find('ReLU') != -1:
+        m.inplace = True
 
 def train():
     global HARD_NEGATIVES, TOTAL_ITERATIONS
@@ -125,7 +133,15 @@ def train():
     train_writer = SummaryWriter(os.path.join(args.log_dir, 'train'))
     #test_writer = SummaryWriter(os.path.join(args.log_dir, 'test'))
 
-    model = PNV.PointNetVlad(feature_transform=False, num_points=args.num_points, featnet = args.featnet, emb_dims=args.emb_dims)
+    model = PNV.PointNetVlad(feature_transform=args.fstn, num_points=args.num_points, featnet = args.featnet, emb_dims=args.emb_dims)
+
+    para = sum([np.prod(list(p.size())) for p in model.parameters()])
+    # 下面的type_size是4，因为我们的参数是float32也就是4B，4个字节
+    print('Model {} : params: {:4f}M'.format(model._get_name(), para * 4 / 1000 / 1000))
+    # return
+
+    # 知乎说会节省显存，没啥用
+    # model.apply(inplace_relu)
 
     if torch.cuda.is_available():
         model = model.cuda()
@@ -134,8 +150,14 @@ def train():
         print("use cpu...")
         model = model.cpu()
 
+    # print("model all:")
+    # for name, param in model.named_parameters():
+    #     print(name)
+
     parameters = filter(lambda p: p.requires_grad, model.parameters())
 
+    # while (1):
+    #     a=1
     if args.optimizer == 'momentum':
         optimizer = torch.optim.SGD(
             parameters, learning_rate, momentum=args.momentum)
@@ -259,13 +281,13 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                 break
 
         if(faulty_tuple):
-            log_string('----' + str(i) + '-----')
-            log_string('----' + 'FAULTY TUPLE' + '-----')
+            # log_string('----' + str(i) + '-----')
+            # log_string('----' + 'FAULTY TUPLE' + '-----')
             continue
 
         if(no_other_neg):
-            log_string('----' + str(i) + '-----')
-            log_string('----' + 'NO OTHER NEG' + '-----')
+            # log_string('----' + str(i) + '-----')
+            # log_string('----' + 'NO OTHER NEG' + '-----')
             continue
 
         queries = []
@@ -284,9 +306,9 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
         other_neg = np.expand_dims(other_neg, axis=1)
         positives = np.array(positives, dtype=np.float32)
         negatives = np.array(negatives, dtype=np.float32)
-        log_string('----' + str(i) + '-----')
+        # log_string('----' + str(i) + '-----')
         if (len(queries.shape) != 4):
-            log_string('----' + 'FAULTY QUERY' + '-----')
+            # log_string('----' + 'FAULTY QUERY' + '-----')
             continue
 
         model.train()
@@ -298,7 +320,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
         loss.backward()
         optimizer.step()
 
-        log_string('batch loss: %f' % loss)
+        # log_string('batch loss: %f' % loss)
         train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
         TOTAL_ITERATIONS += args.batch_num_queries
 

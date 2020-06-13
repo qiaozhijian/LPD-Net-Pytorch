@@ -6,6 +6,24 @@ from torch.optim.lr_scheduler import MultiStepLR
 import numpy as np
 from tqdm import tqdm
 import gc
+import pynvml
+import sys
+import os
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(BASE_DIR,"../Pytorch-Memory-Utils"))
+from gpu_mem_track import  MemTracker
+import inspect
+pynvml.nvmlInit()
+handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+# 这里的0是GPU id
+ratio = 1024**2
+frame = inspect.currentframe()          # define a frame to track
+gpu_tracker = MemTracker(frame)         # define a GPU tracker
+
+def print_gpu():
+    meminfo = pynvml.nvmlDeviceGetMemoryInfo(handle)
+    used = meminfo.used / ratio
+    print("used: ", used)
 
 class LPDNet(nn.Module):
     def __init__(self,emb_dims=512, use_mFea=False,t3d=False,tfea=False,negative_slope=1e-2):
@@ -23,9 +41,9 @@ class LPDNet(nn.Module):
         self.useBN = False
         if self.useBN:
             # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
-            self.convDG1 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),nn.LeakyReLU(negative_slope=self.negative_slope))
-            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),nn.LeakyReLU(negative_slope=self.negative_slope))
-            self.convSN1 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),nn.BatchNorm2d(256),nn.LeakyReLU(negative_slope=self.negative_slope))
+            self.convDG1 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
+            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
+            self.convSN1 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),nn.BatchNorm2d(256),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
             # 在一维上进行卷积，临近也是左右概念，类似的，二维卷积，临近有上下左右的概念
             if self.use_mFea:
                 self.conv1_lpd = nn.Conv1d(8, 64, kernel_size=1, bias=False)
@@ -39,9 +57,9 @@ class LPDNet(nn.Module):
             self.bn3_lpd = nn.BatchNorm1d(self.emb_dims)
         else :
             # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
-            self.convDG1 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=True),nn.LeakyReLU(negative_slope=self.negative_slope))
-            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=True),nn.LeakyReLU(negative_slope=self.negative_slope))
-            self.convSN1 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=True),nn.LeakyReLU(negative_slope=self.negative_slope))
+            self.convDG1 = nn.Sequential(nn.Conv2d(64*1, 128, kernel_size=1, bias=True),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
+            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=True),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
+            self.convSN1 = nn.Sequential(nn.Conv2d(128*1, 256, kernel_size=1, bias=True),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
 
             if self.use_mFea:
                 self.conv1_lpd = nn.Conv1d(8, 64, kernel_size=1, bias=True)
@@ -53,7 +71,10 @@ class LPDNet(nn.Module):
     # input x: # [B,1,num,num_dims]
     # output x: # [b,emb_dims,num,1]
     def forward(self, x):
+        print("")
+        #gpu_tracker.track()
         x=torch.squeeze(x,dim=1).transpose(2, 1) # [B,num_dims,num]
+        #gpu_tracker.track()
         batch_size, num_dims, num_points = x.size()
         # 单独对坐标进行T-Net旋转
         if num_dims > 3 or self.use_mFea:
@@ -72,11 +93,11 @@ class LPDNet(nn.Module):
                 trans = self.t_net3d(x)
                 x = torch.bmm(x.transpose(2, 1), trans).transpose(2, 1)
         if self.useBN:
-            x = F.leaky_relu(self.bn1_lpd(self.conv1_lpd(x)),negative_slope=self.negative_slope)
-            x = F.leaky_relu(self.bn2_lpd(self.conv2_lpd(x)),negative_slope=self.negative_slope)
+            x = F.leaky_relu(self.bn1_lpd(self.conv1_lpd(x)),negative_slope=self.negative_slope,inplace=True)
+            x = F.leaky_relu(self.bn2_lpd(self.conv2_lpd(x)),negative_slope=self.negative_slope,inplace=True)
         else:
-            x = F.leaky_relu(self.conv1_lpd(x),negative_slope=self.negative_slope)
-            x = F.leaky_relu(self.conv2_lpd(x),negative_slope=self.negative_slope)
+            x = F.leaky_relu(self.conv1_lpd(x),negative_slope=self.negative_slope,inplace=True)
+            x = F.leaky_relu(self.conv2_lpd(x),negative_slope=self.negative_slope,inplace=True)
 
         if self.tfea:
             trans_feat = self.t_net_fea(x)
@@ -86,23 +107,35 @@ class LPDNet(nn.Module):
 
         # Serial structure
         # Danymic Graph cnn for feature space
-        x = get_graph_feature(x, k=self.k) # [b,64*2,num,20]
+        #gpu_tracker.track()
+        # x = get_graph_feature(x, k=self.k) # [b,64*2,num,20]
+        x = get_graph_feature(x, k=self.k) # [B, num_dims, num, k+1]
+        #gpu_tracker.track()
         x = self.convDG1(x) # [b,128,num,20]
+        #gpu_tracker.track()
         x1 = x.max(dim=-1, keepdim=True)[0] # [b,128,num,1]
+        #gpu_tracker.track()
         x = self.convDG2(x) # [b,128,num,20]
+        #gpu_tracker.track()
         x2 = x.max(dim=-1, keepdim=True)[0] # [b,128,num,1]
+        #gpu_tracker.track()
 
         # Spatial Neighborhood fusion for cartesian space
         idx = knn(xInit3d, k=self.k)
+        #gpu_tracker.track()
         x = get_graph_feature(x2, idx=idx, k=self.k) # [b,128*2,num,20]
+        #gpu_tracker.track()
         x = self.convSN1(x) # [b,256,num,20]
+        #gpu_tracker.track()
         x3 = x.max(dim=-1, keepdim=True)[0] # [b,256,num,1]
+        #gpu_tracker.track()
 
         x = torch.cat((x1, x2, x3), dim=1).squeeze(-1) # [b,512,num]
+        #gpu_tracker.track()
         if self.useBN:
-            x = F.leaky_relu(self.bn3_lpd(self.conv3_lpd(x)),negative_slope=self.negative_slope).view(batch_size, -1, num_points) # [b,emb_dims,num]
+            x = F.leaky_relu(self.bn3_lpd(self.conv3_lpd(x)),negative_slope=self.negative_slope,inplace=True).view(batch_size, -1, num_points) # [b,emb_dims,num]
         else:
-            x = F.leaky_relu(self.conv3_lpd(x),negative_slope=self.negative_slope).view(batch_size, -1, num_points) # [b,emb_dims,num]
+            x = F.leaky_relu(self.conv3_lpd(x),negative_slope=self.negative_slope,inplace=True).view(batch_size, -1, num_points) # [b,emb_dims,num]
         # [b,emb_dims,num]
         x = x.unsqueeze(-1)
         # [b,emb_dims,num,1]
@@ -119,7 +152,7 @@ class TranformNet(nn.Module):
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, k * k)
-        self.relu = nn.LeakyReLU(negative_slope=negative_slope)
+        self.relu = nn.LeakyReLU(negative_slope=negative_slope,inplace=True)
 
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(128)
@@ -131,14 +164,14 @@ class TranformNet(nn.Module):
 
     def forward(self, x):
         batchsize = x.size()[0]
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
+        x = F.relu(self.bn1(self.conv1(x)),inplace=True)
+        x = F.relu(self.bn2(self.conv2(x)),inplace=True)
+        x = F.relu(self.bn3(self.conv3(x)),inplace=True)
         x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 1024)
 
-        x = F.relu(self.bn4(self.fc1(x)))
-        x = F.relu(self.bn5(self.fc2(x)))
+        x = F.relu(self.bn4(self.fc1(x)),inplace=True)
+        x = F.relu(self.bn5(self.fc2(x)),inplace=True)
         x = self.fc3(x)
 
         device = torch.device('cuda')
@@ -155,7 +188,8 @@ def knn(x, k):
     xx = torch.sum(x ** 2, dim=1, keepdim=True) # [b,1,num] #x ** 2 表示点平方而不是x*x
     # 2x1x2+2y1y2+2z1z2-x1^2-y1^2-z1^2-x2^2-y2^2-z2^2=-[(x1-x2)^2+(y1-y2)^2+(z1-z2)^2]
     pairwise_distance = -xx - inner
-    pairwise_distance = pairwise_distance - xx.transpose(2, 1).contiguous() # [b,num,num]
+    del inner,x
+    pairwise_distance = pairwise_distance - xx.transpose(2, 1) # [b,num,num]
     idx = pairwise_distance.topk(k=k, dim=-1)[1]  # (batch_size, num_points, k)
     return idx
 
@@ -167,25 +201,28 @@ def get_graph_feature(x, k=20, idx=None):
     x = x.view(batch_size, -1, num_points)
     if idx is None:
         idx = knn(x, k=k)  # (batch_size, num_points, k)
-    device = torch.device('cuda')
-    # 获得索引阶梯数组
-    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points  # (batch_size, 1, 1) [0 num_points ... num_points*(B-1)]
-    # 以batch为单位，加到索引上
-    idx = idx + idx_base  # (batch_size, num_points, k)
-    # 展成一维数组，方便后续索引
-    idx = idx.view(-1)  # (batch_size * num_points * k)
-    # 获得特征维度
-    _, num_dims, _ = x.size()
-    x = x.transpose(2,1).contiguous()  # (batch_size, num_points, num_dims)
-    # 改变x的shape，方便索引。被索引数组是所有batch的所有点的特征，索引数组idx为所有临近点对应的序号，从而索引出所有领域点的特征
-    feature = x.view(batch_size * num_points, -1)[idx, :]  # (batch_size * num_points * k,num_dims)
-    # 统一数组形式
-    feature = feature.view(batch_size, num_points, k, num_dims)  # (batch_size, num_points, k, num_dims)
-    # 重复k次，以便k个邻域点每个都能和中心点做运算
-    x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)  # [B, num, k, num_dims]
-    # 领域特征的表示，为(feature - x, x)，这种形式可以详尽参见dgcnn论文
-    feature = torch.cat((feature, x), dim=3).permute(0, 3, 1, 2)     # [B, num_dims*2, num, k]
 
+    with torch.no_grad():
+        device = torch.device('cuda')
+        # 获得索引阶梯数组
+        idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points  # (batch_size, 1, 1) [0 num_points ... num_points*(B-1)]
+        # 以batch为单位，加到索引上
+        idx = idx + idx_base  # (batch_size, num_points, k)
+        # 展成一维数组，方便后续索引
+        idx = idx.view(-1)  # (batch_size * num_points * k)
+        # 获得特征维度
+        _, num_dims, _ = x.size()
+        x = x.transpose(2,1).contiguous()  # (batch_size, num_points, num_dims)
+        # 改变x的shape，方便索引。被索引数组是所有batch的所有点的特征，索引数组idx为所有临近点对应的序号，从而索引出所有领域点的特征
+        feature = x.view(batch_size * num_points, -1)[idx, :]  # (batch_size * num_points * k,num_dims)
+        # 统一数组形式
+        feature = feature.view(batch_size, num_points, k, num_dims)  # (batch_size, num_points, k, num_dims)
+        # 重复k次，以便k个邻域点每个都能和中心点做运算
+        # x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)  # [B, num, k, num_dims]
+        x = x.view(batch_size, num_points, 1, num_dims)  # [B, num, 1, num_dims]
+        # 领域特征的表示，为(feature - x, x)，这种形式可以详尽参见dgcnn论文
+        feature = torch.cat((feature, x), dim=2).permute(0, 3, 1, 2)     # [B, num_dims, num, k+1]
+    # del x,idx,idx_base
     return feature
 
 
