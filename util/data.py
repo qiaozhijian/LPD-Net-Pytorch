@@ -84,8 +84,8 @@ class Oxford_train_base(Dataset):
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
 
-        queries = np.expand_dims(np.array(q_tuples[0], dtype=np.float32), axis=1)
-        other_neg = np.expand_dims(np.array(q_tuples[3], dtype=np.float32), axis=1)
+        queries = np.expand_dims(np.array(q_tuples[0], dtype=np.float32), axis=0)
+        other_neg = np.expand_dims(np.array(q_tuples[3], dtype=np.float32), axis=0)
         positives = np.array(q_tuples[1], dtype=np.float32)
         negatives = np.array(q_tuples[2], dtype=np.float32)
 
@@ -161,8 +161,8 @@ class Oxford_train_advance(Dataset):
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
 
-        queries = np.expand_dims(np.array(q_tuples[0], dtype=np.float32), axis=1)
-        other_neg = np.expand_dims(np.array(q_tuples[3], dtype=np.float32), axis=1)
+        queries = np.expand_dims(np.array(q_tuples[0], dtype=np.float32), axis=0)
+        other_neg = np.expand_dims(np.array(q_tuples[3], dtype=np.float32), axis=0)
         positives = np.array(q_tuples[1], dtype=np.float32)
         negatives = np.array(q_tuples[2], dtype=np.float32)
 
