@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 import random
 import config as cfg
-
+from time import time
 def get_queries_dict(filename):
     # key:{'query':file,'positives':[files],'negatives:[files], 'neighbors':[keys]}
     with open(filename, 'rb') as handle:
@@ -83,17 +83,16 @@ def jitter_point_cloud(batch_data, sigma=0.005, clip=0.05):
 
 
 def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other_neg=False):
-        # get query tuple for dictionary entry
-        # return list [query,positives,negatives]
-
+    # get query tuple for dictionary entry
+    # return list [query,positives,negatives]
+    start = time()
     query = load_pc_file(dict_value["query"])  # Nx3
-
     random.shuffle(dict_value["positives"])
     pos_files = []
 
+    # 不必考虑正样本是否充足，因为之前判断过
     for i in range(num_pos):
         pos_files.append(QUERY_DICT[dict_value["positives"][i]]["query"])
-    #positives= load_pc_files(dict_value["positives"][0:num_pos])
     positives = load_pc_files(pos_files)
 
     neg_files = []
@@ -103,26 +102,25 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other
         for i in range(num_neg):
             neg_files.append(QUERY_DICT[dict_value["negatives"][i]]["query"])
             neg_indices.append(dict_value["negatives"][i])
-
     else:
         random.shuffle(dict_value["negatives"])
         for i in hard_neg:
             neg_files.append(QUERY_DICT[i]["query"])
             neg_indices.append(i)
         j = 0
+        # 如果hard不够，再进行补充
         while(len(neg_files) < num_neg):
-
             if not dict_value["negatives"][j] in hard_neg:
                 neg_files.append(
                     QUERY_DICT[dict_value["negatives"][j]]["query"])
                 neg_indices.append(dict_value["negatives"][j])
             j += 1
-
     negatives = load_pc_files(neg_files)
 
+    # print("load time: ",time()-start)
+    # 是否需要额外的neg（Quadruplet loss需要）
     if other_neg is False:
         return [query, positives, negatives]
-    # For Quadruplet Loss
     else:
         # get neighbors of negatives and query
         neighbors = []
@@ -131,13 +129,12 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other
         for neg in neg_indices:
             for pos in QUERY_DICT[neg]["positives"]:
                 neighbors.append(pos)
+        # 减去与neighbors公共有的部分，剩下既不进也不远的那些部分
         possible_negs = list(set(QUERY_DICT.keys())-set(neighbors))
         random.shuffle(possible_negs)
-
         if(len(possible_negs) == 0):
             return [query, positives, negatives, np.array([])]
-
-        neg2 = load_pc_file(QUERY_DICT[possible_negs[0]]["query"])
+        neg2 = load_pc_file(QUERY_DICT[possible_negs[0]]["query"]) # 就一个
 
         return [query, positives, negatives, neg2]
 
