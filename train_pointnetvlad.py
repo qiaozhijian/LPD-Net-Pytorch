@@ -79,6 +79,11 @@ def train():
         optimizer = None
         exit(0)
 
+    if torch.cuda.device_count() > 1:
+        model = nn.DataParallel(model)
+        # net = torch.nn.parallel.DistributedDataParallel(net)
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+
     if not os.path.exists(args.pretrained_path):
         print("can't find pretrained model")
     else:
@@ -93,11 +98,6 @@ def train():
             model.load_state_dict(saved_state_dict, strict=False)
             optimizer.load_state_dict(checkpoint['optimizer'])
             update_vectors()
-
-    if torch.cuda.device_count() > 1:
-        model = nn.DataParallel(model)
-        # net = torch.nn.parallel.DistributedDataParallel(net)
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
 
     LOG_FOUT.write(cfg.cfg_str())
     LOG_FOUT.write("\n")

@@ -153,13 +153,6 @@ class Oxford_train_base(Dataset):
     def __len__(self):
         return self.train_len
 
-def update_vectors():
-    global TRAINING_LATENT_VECTORS
-    global TRAINING_QUERIES
-    global model
-    TRAINING_LATENT_VECTORS = get_latent_vectors(model, TRAINING_QUERIES)
-    print("Updated cached feature vectors")
-
 class Oxford_train_advance(Dataset):
     def __init__(self, args):
         self.num_points = args.num_points
@@ -236,66 +229,60 @@ class Oxford_train_advance(Dataset):
     def __len__(self):
         return self.train_len
 
-def get_latent_vectors(model, dict_to_process):
+
+def update_vectors():
+    global TRAINING_LATENT_VECTORS
+    global TRAINING_QUERIES
+    global model
     global args
-    train_file_idxs = np.arange(0, len(dict_to_process.keys()))
+
+    train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
 
     batch_num = args.batch_num_queries * \
-        (1 + args.positives_per_query + args.negatives_per_query + 1)
+                (1 + args.positives_per_query + args.negatives_per_query + 1)
     q_output = []
 
     model.eval()
 
-    for q_index in tqdm(range(len(train_file_idxs)//batch_num)):
+    for q_index in tqdm(range(len(train_file_idxs) // batch_num)):
+    # for q_index in tqdm(range(batch_num*2 // batch_num)):
         file_indices = train_file_idxs[q_index *
-                                       batch_num:(q_index+1)*(batch_num)]
+                                       batch_num:(q_index + 1) * (batch_num)]
         file_names = []
         for index in file_indices:
-            file_names.append(dict_to_process[index]["query"])
+            file_names.append(TRAINING_QUERIES[index]["query"])
         queries = load_pc_files(file_names)
-
         feed_tensor = torch.from_numpy(queries).float()
         feed_tensor = feed_tensor.unsqueeze(1)
         feed_tensor = feed_tensor.to(device)
         with torch.no_grad():
             out = model(feed_tensor)
-
         out = out.detach().cpu().numpy()
         out = np.squeeze(out)
-
         q_output.append(out)
 
     q_output = np.array(q_output)
-    if(len(q_output) != 0):
+    if (len(q_output) != 0):
         q_output = q_output.reshape(-1, q_output.shape[-1])
 
     # handle edge case
-    for q_index in tqdm(range((len(train_file_idxs) // batch_num * batch_num), len(dict_to_process.keys()))):
+    for q_index in tqdm(range((len(train_file_idxs) // batch_num * batch_num), len(TRAINING_QUERIES.keys()))):
         index = train_file_idxs[q_index]
-        queries = load_pc_files([dict_to_process[index]["query"]])
+        queries = load_pc_files([TRAINING_QUERIES[index]["query"]])
         queries = np.expand_dims(queries, axis=1)
 
-        # if (BATCH_NUM_QUERIES - 1 > 0):
-        #    fake_queries = np.zeros((BATCH_NUM_QUERIES - 1, 1, NUM_POINTS, 3))
-        #    q = np.vstack((queries, fake_queries))
-        # else:
-        #    q = queries
-
-        #fake_pos = np.zeros((BATCH_NUM_QUERIES, POSITIVES_PER_QUERY, NUM_POINTS, 3))
-        #fake_neg = np.zeros((BATCH_NUM_QUERIES, NEGATIVES_PER_QUERY, NUM_POINTS, 3))
-        #fake_other_neg = np.zeros((BATCH_NUM_QUERIES, 1, NUM_POINTS, 3))
-        #o1, o2, o3, o4 = run_model(model, q, fake_pos, fake_neg, fake_other_neg)
         with torch.no_grad():
             queries_tensor = torch.from_numpy(queries).float()
+            queries_tensor = queries_tensor.to(device)
             o1 = model(queries_tensor)
 
         output = o1.detach().cpu().numpy()
         output = np.squeeze(output)
         if (q_output.shape[0] != 0):
-            q_output = np.vstack((q_output, output))
+            q_output = np.vstack((q_output, output.reshape(-1,cfg.FEATURE_OUTPUT_DIM)))
         else:
             q_output = output
-
     model.train()
-    # print(q_output.shape)
-    # return q_output
+
+    TRAINING_LATENT_VECTORS = q_output
+    print("Updated cached feature vectors")
