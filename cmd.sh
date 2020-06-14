@@ -1,2 +1,2 @@
-CUDA_VISIBLE_DEVICES=0,1 python train_pointnetvlad.py --featnet=pointnet --batch_num_queries=7
+CUDA_VISIBLE_DEVICES=0,1 python train_pointnetvlad.py --batch_num_queries=7 --featnet=pointnet --pretrained_path=./pretrained/pointnet.ckpt
 CUDA_VISIBLE_DEVICES=0,1 python train_pointnetvlad.py --featnet=lpdnet --pretrained_path=./pretrained/lpd.t7

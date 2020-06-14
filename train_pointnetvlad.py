@@ -54,24 +54,6 @@ def train():
     global model
     global HARD_NEGATIVES, TOTAL_ITERATIONS
 
-    para = sum([np.prod(list(p.size())) for p in model.parameters()])
-    # 下面的type_size是4，因为我们的参数是float32也就是4B，4个字节
-    print('Model {} : params: {:4f}M'.format(model._get_name(), para * 4 / 1000 / 1000))
-
-    # 知乎说会节省显存，没啥用
-    # model.apply(inplace_relu)
-
-    if torch.cuda.is_available():
-        model = model.cuda()
-        print("use cuda!")
-    else:
-        print("use cpu...")
-        model = model.cpu()
-
-    # print("model all:")
-    # for name, param in model.named_parameters():
-    #     print(name)
-
     parameters = filter(lambda p: p.requires_grad, model.parameters())
 
     # bn_decay = get_bn_decay(0)

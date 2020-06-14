@@ -18,6 +18,7 @@ TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
 HARD_NEGATIVES = {}
 TRAINING_LATENT_VECTORS = []
 TRAINING_POINT_CLOUD = []
+
 for i in tqdm(range(len(TRAINING_QUERIES))):
     filename = TRAINING_QUERIES[i]["query"]
     pc = load_pc_file(filename)
@@ -154,7 +155,8 @@ class Oxford_train_base(Dataset):
 
 def update_vectors():
     global TRAINING_LATENT_VECTORS
-    global model,args
+    global TRAINING_QUERIES
+    global model
     TRAINING_LATENT_VECTORS = get_latent_vectors(model, TRAINING_QUERIES)
     print("Updated cached feature vectors")
 
@@ -244,7 +246,7 @@ def get_latent_vectors(model, dict_to_process):
 
     model.eval()
 
-    for q_index in range(len(train_file_idxs)//batch_num):
+    for q_index in tqdm(range(len(train_file_idxs)//batch_num)):
         file_indices = train_file_idxs[q_index *
                                        batch_num:(q_index+1)*(batch_num)]
         file_names = []
@@ -268,7 +270,7 @@ def get_latent_vectors(model, dict_to_process):
         q_output = q_output.reshape(-1, q_output.shape[-1])
 
     # handle edge case
-    for q_index in range((len(train_file_idxs) // batch_num * batch_num), len(dict_to_process.keys())):
+    for q_index in tqdm(range((len(train_file_idxs) // batch_num * batch_num), len(dict_to_process.keys()))):
         index = train_file_idxs[q_index]
         queries = load_pc_files([dict_to_process[index]["query"]])
         queries = np.expand_dims(queries, axis=1)

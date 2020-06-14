@@ -1,8 +1,10 @@
 import argparse
-import models.PointNetVlad as PNV
-import config as cfg
 import os
 from datetime import datetime
+import torch
+import numpy as np
+import config as cfg
+import models.PointNetVlad as PNV
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--results_dir', default='results/',
@@ -74,3 +76,21 @@ args.log_dir = 'checkpoints/' + args.exp_name
 cfg.RESULTS_FOLDER = args.log_dir + '/' + cfg.RESULTS_FOLDER
 if not os.path.exists(cfg.RESULTS_FOLDER):
     os.makedirs(cfg.RESULTS_FOLDER)
+
+para = sum([np.prod(list(p.size())) for p in model.parameters()])
+# 下面的type_size是4，因为我们的参数是float32也就是4B，4个字节
+print('Model {} : params: {:4f}M'.format(model._get_name(), para * 4 / 1000 / 1000))
+
+# 知乎说会节省显存，没啥用
+# model.apply(inplace_relu)
+
+if torch.cuda.is_available():
+    model = model.cuda()
+    print("use cuda!")
+else:
+    print("use cpu...")
+    model = model.cpu()
+
+# print("model all:")
+# for name, param in model.named_parameters():
+#     print(name)
