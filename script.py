@@ -4,6 +4,7 @@ import config as cfg
 import pynvml
 import os
 from torch.autograd import Variable
+import numpy as np
 
 pynvml.nvmlInit()
 handle = pynvml.nvmlDeviceGetHandleByIndex(0)
@@ -17,6 +18,11 @@ def print_gpu():
 
 model=2
 if __name__ == "__main__":
-    print(1400//6*6)
-    print(6*233*2%(1400//6*6)==0)
+    base=[]
+    for i in range(20):
+        a=np.random.randn(4096,3)
+        base.append(a)
+    base=np.asarray(base).reshape(-1,4096,3)
+    b=base[[0,2,15]]
+    print(b.shape)
     
