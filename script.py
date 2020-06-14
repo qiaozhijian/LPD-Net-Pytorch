@@ -17,5 +17,6 @@ def print_gpu():
 
 model=2
 if __name__ == "__main__":
-    print(model)
+    print(1400//6*6)
+    print(6*233*2%(1400//6*6)==0)
     

@@ -9,7 +9,8 @@ from loading_pointclouds import *
 from tensorboardX import SummaryWriter
 from torch.backends import cudnn
 from tqdm import tqdm
-from util.data import TRAINING_QUERIES, device
+from torch.utils.data import DataLoader
+from util.data import TRAINING_QUERIES, device, update_vectors, Oxford_train_advance, Oxford_train_base
 from util.initPara import args, model
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,10 +24,11 @@ LOG_FOUT.write(str(args) + '\n')
 TOTAL_ITERATIONS = 0
 
 BN_DECAY_DECAY_STEP = float(args.decay_step)
+
 def get_bn_decay(batch):
     bn_momentum = cfg.BN_INIT_DECAY * \
-        (cfg.BN_DECAY_DECAY_RATE **
-         (batch * args.batch_num_queries // BN_DECAY_DECAY_STEP))
+                  (cfg.BN_DECAY_DECAY_RATE **
+                   (batch * args.batch_num_queries // BN_DECAY_DECAY_STEP))
     return min(cfg.BN_DECAY_CLIP, 1 - bn_momentum)
 
 
@@ -36,24 +38,25 @@ def log_string(out_str):
     print(out_str)
 
 # learning rate halfed every 5 epoch
-
 def get_learning_rate(epoch):
     learning_rate = args.learning_rate * ((0.9) ** (epoch // 5))
     learning_rate = max(learning_rate, 0.00001)  # CLIP THE LEARNING RATE!
     return learning_rate
+
 
 def inplace_relu(m):
     classname = m.__class__.__name__
     if classname.find('ReLU') != -1:
         m.inplace = True
 
+
 def train():
+    global model
     global HARD_NEGATIVES, TOTAL_ITERATIONS
 
     para = sum([np.prod(list(p.size())) for p in model.parameters()])
     # 下面的type_size是4，因为我们的参数是float32也就是4B，4个字节
     print('Model {} : params: {:4f}M'.format(model._get_name(), para * 4 / 1000 / 1000))
-    # return
 
     # 知乎说会节省显存，没啥用
     # model.apply(inplace_relu)
@@ -73,7 +76,7 @@ def train():
 
     # bn_decay = get_bn_decay(0)
 
-    #loss = lazy_quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg_vec, MARGIN1, MARGIN2)
+    # loss = lazy_quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg_vec, MARGIN1, MARGIN2)
     if args.loss_function == 'quadruplet':
         # 有了第二项约束，类内间距离应该比内类距离大
         loss_function = PNV_loss.quadruplet_loss
@@ -82,7 +85,7 @@ def train():
     learning_rate = get_learning_rate(0)
 
     train_writer = SummaryWriter(os.path.join(args.log_dir, 'train'))
-    #test_writer = SummaryWriter(os.path.join(args.log_dir, 'test'))
+    # test_writer = SummaryWriter(os.path.join(args.log_dir, 'test'))
     # while (1):
     #     a=1
     if args.optimizer == 'momentum':
@@ -123,12 +126,15 @@ def train():
     LOG_FOUT.write("\n")
     LOG_FOUT.flush()
 
+    loader_base = DataLoader(Oxford_train_base(args=args),batch_size=args.batch_num_queries, shuffle=True, drop_last=True)
+    loader_advance = DataLoader(Oxford_train_advance(args=args),batch_size=args.batch_num_queries, shuffle=True, drop_last=True)
+
     for epoch in range(starting_epoch, args.max_epoch):
-        print("epoch: ",epoch)
+        print("epoch: ", epoch)
         log_string('**** EPOCH %03d ****' % (epoch))
         sys.stdout.flush()
 
-        train_one_epoch(model, optimizer, train_writer, loss_function, epoch)
+        train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance)
 
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
@@ -138,151 +144,50 @@ def train():
         train_writer.add_scalar("Val Recall", eval_one_percent_recall, epoch)
 
 
-def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
-    global HARD_NEGATIVES
-    global TRAINING_LATENT_VECTORS, TOTAL_ITERATIONS
+def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance):
+    global TOTAL_ITERATIONS
+    global model
+    model.train()
+    optimizer.zero_grad()
+    if epoch <= 5:
+        for queries, positives, negatives, other_neg in tqdm(loader_base):
+            output_queries, output_positives, output_negatives, output_other_neg = run_model(
+                model, queries, positives, negatives, other_neg)
+            loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, args.margin_1,
+                                 args.margin_2, use_min=args.triplet_use_best_positives, lazy=args.loss_not_lazy,
+                                 ignore_zero_loss=args.loss_ignore_zero_batch)
+            loss.backward()
+            optimizer.step()
+            train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
+            TOTAL_ITERATIONS += args.batch_num_queries
+    else:
+        for queries, positives, negatives, other_neg in tqdm(loader_advance):
+            output_queries, output_positives, output_negatives, output_other_neg = run_model(
+                model, queries, positives, negatives, other_neg)
+            loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, args.margin_1,
+                                 args.margin_2, use_min=args.triplet_use_best_positives, lazy=args.loss_not_lazy,
+                                 ignore_zero_loss=args.loss_ignore_zero_batch)
+            loss.backward()
+            optimizer.step()
+            train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
+            TOTAL_ITERATIONS += args.batch_num_queries
 
-    is_training = True
-    sampled_neg = 4000
-    # number of hard negatives in the training tuple
-    # which are taken from the sampled negatives
-    hard_neg_num = args.hard_neg_per_query
-    if hard_neg_num >  args.negatives_per_query:
-        print("hard_neg_num >  args.negatives_per_query")
-        return 
+            if (TOTAL_ITERATIONS % (1500//args.batch_num_queries*args.batch_num_queries) ==0):
+                update_vectors()
+                print("Updated cached feature vectors")
 
-    # Shuffle train files
-    train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
-    np.random.shuffle(train_file_idxs)
-
-    # 处理每个小batch
-    for i in tqdm(range(len(train_file_idxs)//args.batch_num_queries)):
-        # for i in range (5):
-        # 获得一个batch的序列号
-        batch_keys = train_file_idxs[i * args.batch_num_queries:(i+1)*args.batch_num_queries]
-        q_tuples = []
-
-        faulty_tuple = False
-        no_other_neg = False
-        for j in range(args.batch_num_queries):
-            # 如果没有足够多的正样本
-            if (len(TRAINING_QUERIES[batch_keys[j]]["positives"]) < args.positives_per_query):
-                faulty_tuple = True
-                break
-            # no cached feature vectors
-            if (len(TRAINING_LATENT_VECTORS) == 0):
-                q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], args.positives_per_query, args.negatives_per_query,
-                                    TRAINING_QUERIES, hard_neg=[], other_neg=True))
-            elif (len(HARD_NEGATIVES.keys()) == 0):
-                query = get_feature_representation(TRAINING_QUERIES[batch_keys[j]]['query'], model)
-                random.shuffle(TRAINING_QUERIES[batch_keys[j]]['negatives'])
-                negatives = TRAINING_QUERIES[batch_keys[j]]['negatives'][0:sampled_neg]
-                # 找到离当前query最近的neg
-                hard_negs = get_random_hard_negatives(query, negatives, hard_neg_num)
-                # print(hard_negs)
-                q_tuples.append(get_query_tuple(TRAINING_QUERIES[batch_keys[j]], args.positives_per_query, args.negatives_per_query,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
-            #     如果指定了一些HARD_NEGATIVES，實際沒有
-            else:
-                query = get_feature_representation(
-                    TRAINING_QUERIES[batch_keys[j]]['query'], model)
-                random.shuffle(TRAINING_QUERIES[batch_keys[j]]['negatives'])
-                negatives = TRAINING_QUERIES[batch_keys[j]
-                                             ]['negatives'][0:sampled_neg]
-                hard_negs = get_random_hard_negatives(
-                    query, negatives, hard_neg_num)
-                hard_negs = list(set().union(
-                    HARD_NEGATIVES[batch_keys[j]], hard_negs))
-                # print('hard', hard_negs)
-                q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], args.positives_per_query, args.negatives_per_query,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
-            # 对点云进行增强，旋转或者加噪声
-            # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
-            # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
-
-            # 这里默认使用了quadruplet loss，所以必须找到other_neg
-            if (q_tuples[j][3].shape[0] != args.num_points):
-                no_other_neg = True
-                break
-
-        if(faulty_tuple):
-            # log_string('----' + str(i) + '-----')
-            # log_string('----' + 'FAULTY TUPLE' + '-----')
-            continue
-
-        if(no_other_neg):
-            # log_string('----' + str(i) + '-----')
-            # log_string('----' + 'NO OTHER NEG' + '-----')
-            continue
-
-        queries = []
-        positives = []
-        negatives = []
-        other_neg = []
-        for k in range(len(q_tuples)):
-            queries.append(q_tuples[k][0])
-            positives.append(q_tuples[k][1])
-            negatives.append(q_tuples[k][2])
-            other_neg.append(q_tuples[k][3])
-
-        queries = np.array(queries, dtype=np.float32)
-        queries = np.expand_dims(queries, axis=1)
-        other_neg = np.array(other_neg, dtype=np.float32)
-        other_neg = np.expand_dims(other_neg, axis=1)
-        positives = np.array(positives, dtype=np.float32)
-        negatives = np.array(negatives, dtype=np.float32)
-        # log_string('----' + str(i) + '-----')
-        if (len(queries.shape) != 4):
-            # log_string('----' + 'FAULTY QUERY' + '-----')
-            continue
-
-        model.train()
-        optimizer.zero_grad()
-
-        output_queries, output_positives, output_negatives, output_other_neg = run_model(
-            model, queries, positives, negatives, other_neg)
-        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, args.margin_1, args.margin_2, use_min=args.triplet_use_best_positives, lazy=args.loss_not_lazy, ignore_zero_loss=args.loss_ignore_zero_batch)
-        loss.backward()
-        optimizer.step()
-
-        # log_string('batch loss: %f' % loss)
-        train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
-        TOTAL_ITERATIONS += args.batch_num_queries
-
-        # EVALLLL
-
-        if (epoch > 5 and i % (1400 // args.batch_num_queries) == 29):
-            TRAINING_LATENT_VECTORS = get_latent_vectors(
-                model, TRAINING_QUERIES)
-            print("Updated cached feature vectors")
-
-        if (i % (6000 // args.batch_num_queries) == 101):
-            if isinstance(model, nn.DataParallel):
-                model_to_save = model.module
-            else:
-                model_to_save = model
-            save_name = args.log_dir + cfg.MODEL_FILENAME
-
-            if torch.cuda.device_count() > 1:
-                torch.save({
-                    'epoch': epoch,
-                    'iter': TOTAL_ITERATIONS,
-                    'state_dict': model_to_save.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                },
-                    save_name)
-            else:
-                torch.save({
-                    'epoch': epoch,
-                    'iter': TOTAL_ITERATIONS,
-                    'state_dict': model_to_save.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                },
-                    save_name)
-
-            print("Model Saved As " + save_name)
+    if isinstance(model, nn.DataParallel):
+        model_to_save = model.module
+    else:
+        model_to_save = model
+    save_name = args.log_dir + cfg.MODEL_FILENAME + "-" + str(epoch)
+    torch.save({
+        'epoch': epoch,
+        'iter': TOTAL_ITERATIONS,
+        'state_dict': model_to_save.state_dict(),
+        'optimizer': optimizer.state_dict(),
+    },save_name)
+    print("Model Saved As " + save_name)
 
 
 def get_feature_representation(filename, model):
@@ -304,19 +209,10 @@ def get_feature_representation(filename, model):
     return output
 
 
-
-
-
-
-
-
 def run_model(model, queries, positives, negatives, other_neg, require_grad=True):
-    queries_tensor = torch.from_numpy(queries).float()
-    positives_tensor = torch.from_numpy(positives).float()
-    negatives_tensor = torch.from_numpy(negatives).float()
-    other_neg_tensor = torch.from_numpy(other_neg).float()
+
     feed_tensor = torch.cat(
-        (queries_tensor, positives_tensor, negatives_tensor, other_neg_tensor), 1)
+        (queries, positives, negatives, other_neg), 1)
     feed_tensor = feed_tensor.view((-1, 1, args.num_points, 3))
     feed_tensor.requires_grad_(require_grad)
     feed_tensor = feed_tensor.to(device)

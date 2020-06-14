@@ -18,145 +18,6 @@ TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
 HARD_NEGATIVES = {}
 TRAINING_LATENT_VECTORS = []
 
-
-def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, loader):
-    global HARD_NEGATIVES
-    global TRAINING_LATENT_VECTORS, TOTAL_ITERATIONS
-
-
-
-    # 处理每个小batch
-    for i in tqdm(range(len(train_file_items)//args.batch_num_queries)):
-        # for i in range (5):
-        # 获得一个batch的序列号
-        batch_keys = train_file_items[i * args.batch_num_queries:(i+1)*args.batch_num_queries]
-        q_tuples = []
-
-        faulty_tuple = False
-        no_other_neg = False
-        for j in range(args.batch_num_queries):
-            # 如果没有足够多的正样本
-            if (len(TRAINING_QUERIES[item]["positives"]) < args.positives_per_query):
-                faulty_tuple = True
-                break
-            # no cached feature vectors
-            if (len(TRAINING_LATENT_VECTORS) == 0):
-                q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[item], args.positives_per_query, args.negatives_per_query,
-                                    TRAINING_QUERIES, hard_neg=[], other_neg=True))
-            elif (len(HARD_NEGATIVES.keys()) == 0):
-                query = get_feature_representation(TRAINING_QUERIES[item]['query'], model)
-                random.shuffle(TRAINING_QUERIES[item]['negatives'])
-                negatives = TRAINING_QUERIES[item]['negatives'][0:sampled_neg]
-                # 找到离当前query最近的neg
-                hard_negs = get_random_hard_negatives(query, negatives, hard_neg_num)
-                # print(hard_negs)
-                q_tuples.append(get_query_tuple(TRAINING_QUERIES[item], args.positives_per_query, args.negatives_per_query,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
-            #     如果指定了一些HARD_NEGATIVES，實際沒有
-            else:
-                query = get_feature_representation(
-                    TRAINING_QUERIES[item]['query'], model)
-                random.shuffle(TRAINING_QUERIES[item]['negatives'])
-                negatives = TRAINING_QUERIES[item
-                                             ]['negatives'][0:sampled_neg]
-                hard_negs = get_random_hard_negatives(
-                    query, negatives, hard_neg_num)
-                hard_negs = list(set().union(
-                    HARD_NEGATIVES[item], hard_negs))
-                # print('hard', hard_negs)
-                q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[item], args.positives_per_query, args.negatives_per_query,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
-            # 对点云进行增强，旋转或者加噪声
-            # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[item],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
-            # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[item],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
-
-            # 这里默认使用了quadruplet loss，所以必须找到other_neg
-            if (q_tuples[j][3].shape[0] != args.num_points):
-                no_other_neg = True
-                break
-
-        if(faulty_tuple):
-            # log_string('----' + str(i) + '-----')
-            # log_string('----' + 'FAULTY TUPLE' + '-----')
-            continue
-
-        if(no_other_neg):
-            # log_string('----' + str(i) + '-----')
-            # log_string('----' + 'NO OTHER NEG' + '-----')
-            continue
-
-        queries = []
-        positives = []
-        negatives = []
-        other_neg = []
-        for k in range(len(q_tuples)):
-            queries.append(q_tuples[k][0])
-            positives.append(q_tuples[k][1])
-            negatives.append(q_tuples[k][2])
-            other_neg.append(q_tuples[k][3])
-
-        queries = np.array(queries, dtype=np.float32)
-        queries = np.expand_dims(queries, axis=1)
-        other_neg = np.array(other_neg, dtype=np.float32)
-        other_neg = np.expand_dims(other_neg, axis=1)
-        positives = np.array(positives, dtype=np.float32)
-        negatives = np.array(negatives, dtype=np.float32)
-        # log_string('----' + str(i) + '-----')
-        if (len(queries.shape) != 4):
-            # log_string('----' + 'FAULTY QUERY' + '-----')
-            continue
-
-        model.train()
-        optimizer.zero_grad()
-
-        for queries, positives, negatives, other_neg in tqdm(loader):
-            if queries==0:
-                continue
-        output_queries, output_positives, output_negatives, output_other_neg = run_model(
-            model, queries, positives, negatives, other_neg)
-        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, args.margin_1, args.margin_2, use_min=args.triplet_use_best_positives, lazy=args.loss_not_lazy, ignore_zero_loss=args.loss_ignore_zero_batch)
-        loss.backward()
-        optimizer.step()
-
-        # log_string('batch loss: %f' % loss)
-        train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
-        TOTAL_ITERATIONS += args.batch_num_queries
-
-        # EVALLLL
-
-        if (epoch > 5 and i % (1400 // args.batch_num_queries) == 29):
-            TRAINING_LATENT_VECTORS = get_latent_vectors(
-                model, TRAINING_QUERIES)
-            print("Updated cached feature vectors")
-
-        if (i % (6000 // args.batch_num_queries) == 101):
-            if isinstance(model, nn.DataParallel):
-                model_to_save = model.module
-            else:
-                model_to_save = model
-            save_name = args.log_dir + cfg.MODEL_FILENAME
-
-            if torch.cuda.device_count() > 1:
-                torch.save({
-                    'epoch': epoch,
-                    'iter': TOTAL_ITERATIONS,
-                    'state_dict': model_to_save.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                },
-                    save_name)
-            else:
-                torch.save({
-                    'epoch': epoch,
-                    'iter': TOTAL_ITERATIONS,
-                    'state_dict': model_to_save.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                },
-                    save_name)
-
-            print("Model Saved As " + save_name)
-
 def get_random_hard_negatives(query_vec, random_negs, hard_neg_num):
     global TRAINING_LATENT_VECTORS
 
@@ -192,18 +53,21 @@ def get_feature_representation(filename, model):
 # 设置成随机抽取的
 class Oxford_train_base(Dataset):
     def __init__(self, args):
-        self.num_points = args.args
+        self.num_points = args.num_points
         self.positives_per_query=args.positives_per_query
         self.negatives_per_query=args.negatives_per_query
         self.train_len=len(TRAINING_QUERIES.keys())
         # self.train_file_items = np.random.permutation(np.arange(0, self.train_len))
         # self.train_file_items = np.arange(0, self.train_len)
         print('Load Oxford Dataset')
-        self.data, self.label = []
-
+        # self.data, self.label = []
+        self.last = []
     def __getitem__(self, item):
         if (len(TRAINING_QUERIES[item]["positives"]) < self.positives_per_query):
-            return 0, 0, 0, 0
+            if self.last==[]:
+                print("wrong")
+            else:
+                return self.last[0], self.last[1], self.last[2], self.last[3]
         # no cached feature vectors
         q_tuples=get_query_tuple(TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
                                 TRAINING_QUERIES, hard_neg=[], other_neg=True)
@@ -215,18 +79,24 @@ class Oxford_train_base(Dataset):
         # 这里默认使用了quadruplet loss，所以必须找到other_neg
         if (q_tuples[3].shape[0] != self.num_points):
             print('----' + 'FAULTY other_neg' + '-----')
-            return 0, 0, 0, 0
+            if self.last==[]:
+                print("wrong")
+            else:
+                return self.last[0], self.last[1], self.last[2], self.last[3]
 
         queries = np.expand_dims(np.array(q_tuples[0], dtype=np.float32), axis=1)
         other_neg = np.expand_dims(np.array(q_tuples[3], dtype=np.float32), axis=1)
         positives = np.array(q_tuples[1], dtype=np.float32)
         negatives = np.array(q_tuples[2], dtype=np.float32)
 
-        if (len(queries.shape) != 4):
+        if (len(queries.shape) != 3):
             print('----' + 'FAULTY QUERY' + '-----')
-            return 0, 0, 0, 0
-
-        return queries, positives, negatives, other_neg
+            if self.last==[]:
+                print("wrong")
+            else:
+                return self.last[0], self.last[1], self.last[2], self.last[3]
+        self.last = [queries, positives, negatives, other_neg]
+        return queries.astype('float32'), positives.astype('float32'), negatives.astype('float32'), other_neg.astype('float32')
 
     def __len__(self):
         return self.train_len
@@ -238,23 +108,27 @@ def update_vectors():
 
 class Oxford_train_advance(Dataset):
     def __init__(self, args):
-        self.num_points = args.args
+        self.num_points = args.num_points
         self.positives_per_query = args.positives_per_query
         self.negatives_per_query = args.negatives_per_query
         self.train_len = len(TRAINING_QUERIES.keys())
         # self.train_file_items = np.random.permutation(np.arange(0, self.train_len))
         # self.train_file_items = np.arange(0, self.train_len)
         print('Load Oxford Dataset')
-        self.data, self.label = []
+        # self.data, self.label = []
         self.sampled_neg = 4000
         self.hard_neg_num = args.hard_neg_per_query
         if self.hard_neg_num > args.negatives_per_query:
             print("self.hard_neg_num >  args.negatives_per_query")
-
+        self.last=[]
     def __getitem__(self, item):
         global model
         if (len(TRAINING_QUERIES[item]["positives"]) < self.positives_per_query):
-            return 0, 0, 0, 0
+            print("lack positive")
+            if self.last==[]:
+                print("wrong")
+            else:
+                return self.last[0], self.last[1], self.last[2], self.last[3]
         if (len(HARD_NEGATIVES.keys()) == 0):
             query = get_feature_representation(TRAINING_QUERIES[item]['query'], model)
             random.shuffle(TRAINING_QUERIES[item]['negatives'])
@@ -282,18 +156,24 @@ class Oxford_train_advance(Dataset):
         # 这里默认使用了quadruplet loss，所以必须找到other_neg
         if (q_tuples[3].shape[0] != self.num_points):
             print('----' + 'FAULTY other_neg' + '-----')
-            return 0, 0, 0, 0
+            if self.last==[]:
+                print("wrong")
+            else:
+                return self.last[0], self.last[1], self.last[2], self.last[3]
 
         queries = np.expand_dims(np.array(q_tuples[0], dtype=np.float32), axis=1)
         other_neg = np.expand_dims(np.array(q_tuples[3], dtype=np.float32), axis=1)
         positives = np.array(q_tuples[1], dtype=np.float32)
         negatives = np.array(q_tuples[2], dtype=np.float32)
 
-        if (len(queries.shape) != 4):
+        if (len(queries.shape) != 3):
             print('----' + 'FAULTY QUERY' + '-----')
-            return 0, 0, 0, 0
-
-        return queries, positives, negatives, other_neg
+            if self.last==[]:
+                print("wrong")
+            else:
+                return self.last[0], self.last[1], self.last[2], self.last[3]
+        self.last = [queries, positives, negatives, other_neg]
+        return queries.astype('float32'), positives.astype('float32'), negatives.astype('float32'), other_neg.astype('float32')
 
     def __len__(self):
         return self.train_len
