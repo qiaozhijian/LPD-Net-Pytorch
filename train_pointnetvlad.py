@@ -84,7 +84,7 @@ def train():
         loss_function = PNV_loss.triplet_loss_wrapper
     learning_rate = get_learning_rate(0)
 
-    train_writer = SummaryWriter(os.path.join(args.log_dir, 'train'))
+    train_writer = SummaryWriter(os.path.join(args.log_dir, 'train_writer'))
     # test_writer = SummaryWriter(os.path.join(args.log_dir, 'test'))
     # while (1):
     #     a=1
@@ -97,25 +97,20 @@ def train():
         optimizer = None
         exit(0)
 
-    # 恢复checkpoint
-    if args.resume:
-        resume_filename = args.log_dir + "checkpoint.pth.tar"
-        print("Resuming From ", resume_filename)
-        checkpoint = torch.load(resume_filename)
-        saved_state_dict = checkpoint['state_dict']
-        starting_epoch = checkpoint['epoch']
-        TOTAL_ITERATIONS = starting_epoch * len(TRAINING_QUERIES)
-
-        model.load_state_dict(saved_state_dict)
-        optimizer.load_state_dict(checkpoint['optimizer'])
-    else:
-        starting_epoch = 0
-
     if not os.path.exists(args.pretrained_path):
         print("can't find pretrained model")
     else:
         print("load pretrained model")
-        model.load_state_dict(torch.load(args.pretrained_path), strict=False)
+        if args.pretrained_path[-1]=="7":
+            model.load_state_dict(torch.load(args.pretrained_path), strict=False)
+        else:
+            checkpoint = torch.load(args.pretrained_path)
+            saved_state_dict = checkpoint['state_dict']
+            starting_epoch = checkpoint['epoch']
+            TOTAL_ITERATIONS = starting_epoch * len(TRAINING_QUERIES)
+            model.load_state_dict(saved_state_dict, strict=False)
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            update_vectors()
 
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
@@ -174,13 +169,13 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
 
             if (TOTAL_ITERATIONS % (1500//args.batch_num_queries*args.batch_num_queries) ==0):
                 update_vectors()
-                print("Updated cached feature vectors")
+
 
     if isinstance(model, nn.DataParallel):
         model_to_save = model.module
     else:
         model_to_save = model
-    save_name = args.log_dir + cfg.MODEL_FILENAME + "-" + str(epoch)
+    save_name = args.model_save_path + '/' + str(epoch) + "-" + cfg.MODEL_FILENAME
     torch.save({
         'epoch': epoch,
         'iter': TOTAL_ITERATIONS,

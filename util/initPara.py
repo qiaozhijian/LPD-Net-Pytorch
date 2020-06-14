@@ -2,10 +2,9 @@ import argparse
 import models.PointNetVlad as PNV
 import config as cfg
 import os
-
+from datetime import datetime
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--log_dir', default='log/', help='Log dir [default: log]')
 parser.add_argument('--results_dir', default='results/',
                     help='results dir [default: results]')
 parser.add_argument('--positives_per_query', type=int, default=2,
@@ -53,6 +52,7 @@ parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
 parser.add_argument('--fstn', action='store_true', default=False,
                     help='feature transform')
 parser.add_argument('--emb_dims', type=int, default=1024)
+parser.add_argument('--log_dir', default='checkpoints/', help='Log dir [default: log]')
 
 args = parser.parse_args()
 cfg.DATASET_FOLDER = args.dataset_folder
@@ -61,3 +61,16 @@ if not os.path.exists(args.log_dir):
 
 model = PNV.PointNetVlad(feature_transform=args.fstn, num_points=args.num_points, featnet=args.featnet,
                          emb_dims=args.emb_dims)
+
+args.exp_name = args.featnet + '-' + datetime.now().strftime("%d-%H-%M")
+if not os.path.exists('checkpoints'):
+    os.makedirs('checkpoints')
+if not os.path.exists('checkpoints/' + args.exp_name):
+    os.makedirs('checkpoints/' + args.exp_name)
+if not os.path.exists('checkpoints/' + args.exp_name + '/' + 'models'):
+    os.makedirs('checkpoints/' + args.exp_name + '/' + 'models')
+args.model_save_path = 'checkpoints/' + args.exp_name + '/' + 'models'
+args.log_dir = 'checkpoints/' + args.exp_name
+cfg.RESULTS_FOLDER = args.log_dir + '/' + cfg.RESULTS_FOLDER
+if not os.path.exists(cfg.RESULTS_FOLDER):
+    os.makedirs(cfg.RESULTS_FOLDER)

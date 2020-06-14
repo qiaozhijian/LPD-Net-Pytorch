@@ -258,7 +258,7 @@ if __name__ == "__main__":
     if cfg.LOG_DIR[-1]!='/':
         cfg.LOG_DIR = cfg.LOG_DIR + '/'
     cfg.RESULTS_FOLDER = cfg.LOG_DIR + cfg.RESULTS_FOLDER
-    cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results.txt'
+    cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + FLAGS.model_name + '_results.txt'
     cfg.MODEL_FILENAME = FLAGS.model_name
     cfg.DATASET_FOLDER = FLAGS.dataset_folder
 

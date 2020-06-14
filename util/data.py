@@ -156,6 +156,7 @@ def update_vectors():
     global TRAINING_LATENT_VECTORS
     global model,args
     TRAINING_LATENT_VECTORS = get_latent_vectors(model, TRAINING_QUERIES)
+    print("Updated cached feature vectors")
 
 class Oxford_train_advance(Dataset):
     def __init__(self, args):
