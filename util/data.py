@@ -192,7 +192,7 @@ class Oxford_train_advance(Dataset):
         self.last=[]
     def __getitem__(self, item):
         if (len(TRAINING_QUERIES[item]["positives"]) < self.positives_per_query):
-            print("lack positive")
+            # print("lack positive")
             if self.last==[]:
                 print("wrong")
             else:
