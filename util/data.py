@@ -53,6 +53,8 @@ def get_query_tuple_fast(item, dict_value, num_pos, num_neg, QUERY_DICT, hard_ne
             if not dict_value["negatives"][j] in hard_neg:
                 neg_indices.append(dict_value["negatives"][j])
             j += 1
+    print(neg_indices)
+    print(flat(neg_indices))
     negatives = TRAINING_POINT_CLOUD[flat(neg_indices)]
 
     # print("load time: ",time()-start)
@@ -244,6 +246,7 @@ def update_vectors(args, model):
 
     batch_num = args.batch_num_queries * \
                 (1 + args.positives_per_query + args.negatives_per_query + 1)
+    print("\n args: ",args.batch_num_queries,args.positives_per_query,args.negatives_per_query)
     q_output = []
 
     model.eval()
