@@ -4,7 +4,24 @@ from datetime import datetime
 import torch
 import numpy as np
 import config as cfg
-import models.PointNetVlad as PNV
+import util.PointNetVlad as PNV
+import pynvml
+
+pynvml.nvmlInit()
+handle0 = pynvml.nvmlDeviceGetHandleByIndex(0)
+if torch.cuda.device_count() > 1:
+    handle1 = pynvml.nvmlDeviceGetHandleByIndex(1)
+ratio = 1024 ** 2
+
+def print_gpu(s=""):
+    if torch.cuda.device_count() > 1:
+        meminfo0 = pynvml.nvmlDeviceGetMemoryInfo(handle0)
+        meminfo1 = pynvml.nvmlDeviceGetMemoryInfo(handle0)
+        used = (meminfo0.used + meminfo1.used) / ratio
+    else:
+        meminfo0 = pynvml.nvmlDeviceGetMemoryInfo(handle0)
+        used = meminfo0.used / ratio
+    print(s+" used: ", used)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--results_dir', default='results/',
@@ -64,7 +81,7 @@ if not os.path.exists(args.log_dir):
 model = PNV.PointNetVlad(feature_transform=args.fstn, num_points=args.num_points, featnet=args.featnet,
                          emb_dims=args.emb_dims)
 
-args.exp_name = args.featnet + '-' + datetime.now().strftime("%d-%H-%M")
+args.exp_name = args.featnet + '-' + datetime.now().strftime("%d-%H-%M-%S")
 if not os.path.exists('checkpoints'):
     os.makedirs('checkpoints')
 if not os.path.exists('checkpoints/' + args.exp_name):

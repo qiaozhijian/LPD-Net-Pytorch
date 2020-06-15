@@ -22,6 +22,7 @@ TRAINING_POINT_CLOUD = []
 load_fast=True
 # 这里最好能跟数据生成同步
 if load_fast:
+    print("start load fast")
     DIR="./generating_queries/"
     if os.path.exists(DIR+"TRAINING_POINT_CLOUD.npy"):
         TRAINING_POINT_CLOUD = np.load(DIR+"TRAINING_POINT_CLOUD.npy")
@@ -261,8 +262,7 @@ def update_vectors(args, model):
 
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
 
-    batch_num = args.batch_num_queries * \
-                (1 + args.positives_per_query + args.negatives_per_query + 1)
+    batch_num = args.batch_num_queries * (1 + args.positives_per_query + args.negatives_per_query + 1)
     # print("\n args: ",args.batch_num_queries,args.positives_per_query,args.negatives_per_query)
     q_output = []
 
@@ -289,6 +289,8 @@ def update_vectors(args, model):
     if (len(q_output) != 0):
         q_output = q_output.reshape(-1, q_output.shape[-1])
 
+    del feed_tensor
+
     # handle edge case
     for q_index in tqdm(range((len(train_file_idxs) // batch_num * batch_num), len(TRAINING_QUERIES.keys()))):
         index = train_file_idxs[q_index]
@@ -298,15 +300,18 @@ def update_vectors(args, model):
         with torch.no_grad():
             queries_tensor = torch.from_numpy(queries).float()
             queries_tensor = queries_tensor.to(device)
-            o1 = model(queries_tensor)
+            output = model(queries_tensor)
 
-        output = o1.detach().cpu().numpy()
+        output = output.detach().cpu().numpy()
         output = np.squeeze(output)
         if (q_output.shape[0] != 0):
             q_output = np.vstack((q_output, output.reshape(-1,cfg.FEATURE_OUTPUT_DIM)))
         else:
             q_output = output
+    del queries_tensor
+
     model.train()
 
     TRAINING_LATENT_VECTORS = q_output
     print("Updated cached feature vectors")
+    torch.cuda.empty_cache()

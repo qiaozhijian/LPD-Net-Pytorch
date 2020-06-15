@@ -1,25 +1,16 @@
 import argparse
-import math
-import numpy as np
-import socket
-import importlib
 import os
 import sys
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 from torch.backends import cudnn
-from time import time
-from sklearn.neighbors import NearestNeighbors
 from sklearn.neighbors import KDTree
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 
 from loading_pointclouds import *
-import models.PointNetVlad as PNV
-from tensorboardX import SummaryWriter
-import loss.pointnetvlad_loss
+import util.PointNetVlad as PNV
 
 import config as cfg
 

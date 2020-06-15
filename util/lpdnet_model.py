@@ -6,24 +6,13 @@ from torch.optim.lr_scheduler import MultiStepLR
 import numpy as np
 from tqdm import tqdm
 import gc
-import pynvml
-import sys
 import os
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(BASE_DIR,"../Pytorch-Memory-Utils"))
-from gpu_mem_track import  MemTracker
+from util.gpu_mem_track import MemTracker
 import inspect
-pynvml.nvmlInit()
-handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-# 这里的0是GPU id
-ratio = 1024**2
+
 frame = inspect.currentframe()          # define a frame to track
 gpu_tracker = MemTracker(frame)         # define a GPU tracker
 
-def print_gpu():
-    meminfo = pynvml.nvmlDeviceGetMemoryInfo(handle)
-    used = meminfo.used / ratio
-    print("used: ", used)
 
 class LPDNet(nn.Module):
     def __init__(self,emb_dims=512, use_mFea=False,t3d=False,tfea=False,negative_slope=1e-2):

@@ -1,8 +1,6 @@
-import argparse
 import sys
 import evaluate
 import loss.pointnetvlad_loss as PNV_loss
-import models.PointNetVlad as PNV
 import torch
 import torch.nn as nn
 from loading_pointclouds import *
@@ -12,6 +10,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from util.data import TRAINING_QUERIES, device, update_vectors, Oxford_train_advance, Oxford_train_base
 import util.initPara as para
+from util.initPara import print_gpu
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
@@ -83,6 +82,7 @@ def train():
         # net = torch.nn.parallel.DistributedDataParallel(net)
         print("Let's use ", torch.cuda.device_count(), " GPUs!")
 
+    print_gpu("0")
     if not os.path.exists(para.args.pretrained_path):
         print("can't find pretrained model")
     else:
@@ -103,6 +103,7 @@ def train():
     LOG_FOUT.write("\n")
     LOG_FOUT.flush()
 
+    print_gpu("1")
     loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
     loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
 
@@ -167,11 +168,12 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
 
 
 def run_model(model, queries, positives, negatives, other_neg, require_grad=True):
-    feed_tensor = torch.cat(
-        (queries, positives, negatives, other_neg), 1)
+    # print_gpu("2")
+    feed_tensor = torch.cat((queries, positives, negatives, other_neg), 1)
     feed_tensor = feed_tensor.view((-1, 1, para.args.num_points, 3))
-    feed_tensor.requires_grad_(require_grad)
-    feed_tensor = feed_tensor.to(device)
+    # feed_tensor.requires_grad_(require_grad)
+    feed_tensor = feed_tensor.cuda()
+    # print_gpu("3")
     if require_grad:
         output = model(feed_tensor)
     else:
