@@ -167,7 +167,7 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
 
 
 def run_model(model, queries, positives, negatives, other_neg, require_grad=True):
-
+    print(queries.shape,positives.shape,negatives.shape,other_neg.shape)
     feed_tensor = torch.cat(
         (queries, positives, negatives, other_neg), 1)
     feed_tensor = feed_tensor.view((-1, 1, para.args.num_points, 3))
@@ -181,7 +181,6 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
     output = output.view(para.args.batch_num_queries, -1, cfg.FEATURE_OUTPUT_DIM)
     o1, o2, o3, o4 = torch.split(
         output, [1, para.args.positives_per_query, para.args.negatives_per_query, 1], dim=1)
-
     return o1, o2, o3, o4
 
 

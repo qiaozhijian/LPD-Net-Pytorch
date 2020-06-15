@@ -20,6 +20,7 @@ TRAINING_LATENT_VECTORS = []
 TRAINING_POINT_CLOUD = []
 
 load_fast=True
+# 这里最好能跟数据生成同步
 if load_fast:
     DIR="./generating_queries/"
     if os.path.exists(DIR+"TRAINING_POINT_CLOUD.npy"):
@@ -58,6 +59,7 @@ def get_query_tuple_fast(item, dict_value, num_pos, num_neg, QUERY_DICT, hard_ne
         neg_indices.append(hard_neg)
         j = 0
         # 如果hard不够，再进行补充
+        neg_indices = list(flat(neg_indices))
         while(len(neg_indices) < num_neg):
             if not dict_value["negatives"][j] in hard_neg:
                 neg_indices.append(dict_value["negatives"][j])
