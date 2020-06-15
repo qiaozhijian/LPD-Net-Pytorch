@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torch.backends import cudnn
 from sklearn.neighbors import KDTree
+from tqdm import tqdm
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
@@ -19,6 +20,9 @@ cudnn.enabled = True
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 recall_num = 25
+
+DATABASE_SETS = get_sets_dict(cfg.EVAL_DATABASE_FILE)
+QUERY_SETS = get_sets_dict(cfg.EVAL_QUERY_FILE)
 
 
 def evaluate():
@@ -38,9 +42,6 @@ def evaluate():
 
 
 def evaluate_model(model):
-    DATABASE_SETS = get_sets_dict(cfg.EVAL_DATABASE_FILE)
-    QUERY_SETS = get_sets_dict(cfg.EVAL_QUERY_FILE)
-
     if not os.path.exists(cfg.RESULTS_FOLDER):
         os.mkdir(cfg.RESULTS_FOLDER)
 
@@ -55,14 +56,14 @@ def evaluate_model(model):
 
     # 总共23个子图
     # 获得每个子地图的每一帧点云的描述子
-    for i in range(len(DATABASE_SETS)):
+    for i in tqdm(range(len(DATABASE_SETS))):
         DATABASE_VECTORS.append(get_latent_vectors(model, DATABASE_SETS[i]))
 
     # 获得每个子地图的每一帧要被评估的点云的描述子
-    for j in range(len(QUERY_SETS)):
+    for j in tqdm(range(len(QUERY_SETS))):
         QUERY_VECTORS.append(get_latent_vectors(model, QUERY_SETS[j]))
 
-    for m in range(len(QUERY_SETS)):
+    for m in tqdm(range(len(QUERY_SETS))):
         for n in range(len(QUERY_SETS)):
             if (m == n):
                 continue
@@ -75,7 +76,6 @@ def evaluate_model(model):
             for x in pair_similarity:
                 similarity.append(x)
 
-    print()
     ave_recall = recall / count
     # print(ave_recall)
 
@@ -93,7 +93,7 @@ def evaluate_model(model):
         output.write("Average top1 Similarity:\n")
         output.write(str(average_similarity_score))
         output.write("\n\n")
-        output.write("Average Top 1% Recall:\n")
+        output.write("Average Top 1 percent Recall:\n")
         output.write(str(ave_one_percent_recall))
 
     return ave_one_percent_recall

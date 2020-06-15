@@ -117,7 +117,7 @@ def train():
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
         eval_one_percent_recall = evaluate.evaluate_model(para.model)
-        log_string('EVAL 1% RECALL: %s' % str(eval_one_percent_recall))
+        log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
 
         train_writer.add_scalar("Val Recall", eval_one_percent_recall, epoch)
 

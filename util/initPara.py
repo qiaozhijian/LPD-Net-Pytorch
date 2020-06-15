@@ -32,7 +32,7 @@ parser.add_argument('--negatives_per_query', type=int, default=18,
                     help='Number of definite negatives in each training tuple [default: 18]')
 parser.add_argument('--hard_neg_per_query', type=int, default=10,
                     help='Number of definite negatives in each training tuple [default: 10]')
-parser.add_argument('--max_epoch', type=int, default=20,
+parser.add_argument('--max_epoch', type=int, default=30,
                     help='Epoch to run [default: 20]')
 parser.add_argument('--eval_batch_size', type=int, default=6,
                     help='test Batch Size during training [default: 6]')

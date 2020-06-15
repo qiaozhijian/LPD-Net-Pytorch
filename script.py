@@ -19,6 +19,19 @@ def change(a):
     a = "dae"
 
 
+import cv2
+import numpy
+
+cap = cv2.VideoCapture(0)  # 调整参数实现读取视频或调用摄像头
+while 1:
+    ret, frame = cap.read()
+    cv2.imshow("cap", frame)
+    if cv2.waitKey(delay=100) & 0xff == ord('q'):
+        break
+cap.release()
+cv2.destroyAllWindows()
+
+
 if __name__ == "__main__":
     a= "{0:145,1:236}"
     change(a)
