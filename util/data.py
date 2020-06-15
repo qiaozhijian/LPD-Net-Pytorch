@@ -21,9 +21,10 @@ TRAINING_POINT_CLOUD = []
 
 load_fast=True
 if load_fast:
-    DIR="../generating_queries/"
+    DIR="./generating_queries/"
     if os.path.exists(DIR+"TRAINING_POINT_CLOUD.npy"):
         TRAINING_POINT_CLOUD = np.load(DIR+"TRAINING_POINT_CLOUD.npy")
+        print("load npy")
     else:
         for i in tqdm(range(len(TRAINING_QUERIES))):
             filename = TRAINING_QUERIES[i]["query"]
@@ -31,6 +32,7 @@ if load_fast:
             TRAINING_POINT_CLOUD.append(pc)
         TRAINING_POINT_CLOUD = np.asarray(TRAINING_POINT_CLOUD).reshape(-1,4096,3)
         np.save(DIR+"TRAINING_POINT_CLOUD.npy", TRAINING_POINT_CLOUD)
+        print("save npy")
 
 def flat(l):
     for k in l:
