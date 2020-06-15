@@ -53,7 +53,8 @@ def get_query_tuple_fast(item, dict_value, num_pos, num_neg, QUERY_DICT, hard_ne
             if not dict_value["negatives"][j] in hard_neg:
                 neg_indices.append(dict_value["negatives"][j])
             j += 1
-    negatives = TRAINING_POINT_CLOUD[list(flat(neg_indices))]
+    neg_indices = list(flat(neg_indices))
+    negatives = TRAINING_POINT_CLOUD[neg_indices]
 
     # print("load time: ",time()-start)
     # 是否需要额外的neg（Quadruplet loss需要）
@@ -68,6 +69,7 @@ def get_query_tuple_fast(item, dict_value, num_pos, num_neg, QUERY_DICT, hard_ne
             for pos in QUERY_DICT[neg]["positives"]:
                 neighbors.append(pos)
         # 减去与neighbors公共有的部分，剩下既不进也不远的那些部分
+        neighbors = list(flat(neighbors))
         possible_negs = list(set(QUERY_DICT.keys())-set(neighbors))
         random.shuffle(possible_negs)
         if(len(possible_negs) == 0):
