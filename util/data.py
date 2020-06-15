@@ -19,11 +19,18 @@ HARD_NEGATIVES = {}
 TRAINING_LATENT_VECTORS = []
 TRAINING_POINT_CLOUD = []
 
-for i in tqdm(range(len(TRAINING_QUERIES))):
-    filename = TRAINING_QUERIES[i]["query"]
-    pc = load_pc_file(filename)
-    TRAINING_POINT_CLOUD.append(pc)
-TRAINING_POINT_CLOUD = np.asarray(TRAINING_POINT_CLOUD).reshape(-1,4096,3)
+load_fast=True
+if load_fast:
+    DIR="../generating_queries/"
+    if os.path.exists(DIR+"TRAINING_POINT_CLOUD.npy"):
+        TRAINING_POINT_CLOUD = np.load(DIR+"TRAINING_POINT_CLOUD.npy")
+    else:
+        for i in tqdm(range(len(TRAINING_QUERIES))):
+            filename = TRAINING_QUERIES[i]["query"]
+            pc = load_pc_file(filename)
+            TRAINING_POINT_CLOUD.append(pc)
+        TRAINING_POINT_CLOUD = np.asarray(TRAINING_POINT_CLOUD).reshape(-1,4096,3)
+        np.save(DIR+"TRAINING_POINT_CLOUD.npy", TRAINING_POINT_CLOUD)
 
 def flat(l):
     for k in l:
@@ -129,10 +136,12 @@ class Oxford_train_base(Dataset):
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
         # no cached feature vectors
-        # q_tuples=get_query_tuple(TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
-        #                         TRAINING_QUERIES, hard_neg=[], other_neg=True)
-        q_tuples=get_query_tuple_fast(item, TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
+        if load_fast:
+            q_tuples=get_query_tuple_fast(item, TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
                                 TRAINING_QUERIES, hard_neg=[], other_neg=True)
+        else:
+            q_tuples = get_query_tuple(TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
+                                    TRAINING_QUERIES, hard_neg=[], other_neg=True)
         # 对点云进行增强，旋转或者加噪声
         # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[item],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
         # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[item],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
@@ -191,10 +200,12 @@ class Oxford_train_advance(Dataset):
             # 找到离当前query最近的neg
             hard_negs = get_random_hard_negatives(query, negatives, self.hard_neg_num)
             # print(hard_negs)
-            # q_tuples=get_query_tuple(TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
-            #                                 TRAINING_QUERIES, hard_negs, other_neg=True)
-            q_tuples=get_query_tuple_fast(item, TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
+            if load_fast:
+                q_tuples=get_query_tuple_fast(item, TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
                                 TRAINING_QUERIES, hard_neg=hard_negs, other_neg=True)
+            else:
+                q_tuples=get_query_tuple(TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
+                                TRAINING_QUERIES, hard_neg = hard_negs, other_neg=True)
         #     如果指定了一些HARD_NEGATIVES，實際沒有
         else:
             query = get_feature_representation(
@@ -207,10 +218,12 @@ class Oxford_train_advance(Dataset):
             hard_negs = list(set().union(
                 HARD_NEGATIVES[item], hard_negs))
             # print('hard', hard_negs)
-            # q_tuples=get_query_tuple(TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
-            #                     TRAINING_QUERIES, hard_negs, other_neg=True)
-            q_tuples=get_query_tuple_fast(item, TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
+            if load_fast:
+                q_tuples=get_query_tuple_fast(item, TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
                                 TRAINING_QUERIES, hard_neg=hard_negs, other_neg=True)
+            else:
+                q_tuples=get_query_tuple(TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
+                                TRAINING_QUERIES, hard_negs, other_neg=True)
 
         # 这里默认使用了quadruplet loss，所以必须找到other_neg
         if (q_tuples[3].shape[0] != self.num_points):

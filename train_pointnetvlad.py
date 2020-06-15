@@ -52,7 +52,7 @@ def inplace_relu(m):
 
 def train():
     global HARD_NEGATIVES, TOTAL_ITERATIONS
-
+    starting_epoch = 0
     parameters = filter(lambda p: p.requires_grad, para.model.parameters())
 
     # bn_decay = get_bn_decay(0)
