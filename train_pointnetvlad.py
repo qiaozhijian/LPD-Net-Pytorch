@@ -81,8 +81,8 @@ def train():
         para.model = nn.DataParallel(para.model)
         # net = torch.nn.parallel.DistributedDataParallel(net)
         print("Let's use ", torch.cuda.device_count(), " GPUs!")
-
-    print_gpu("0")
+    #
+    # print_gpu("0")
     if not os.path.exists(para.args.pretrained_path):
         print("can't find pretrained model")
     else:
@@ -103,7 +103,7 @@ def train():
     LOG_FOUT.write("\n")
     LOG_FOUT.flush()
 
-    print_gpu("1")
+    # print_gpu("1")
     loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
     loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
 

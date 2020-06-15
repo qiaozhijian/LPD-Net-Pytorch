@@ -313,5 +313,5 @@ def update_vectors(args, model):
     model.train()
 
     TRAINING_LATENT_VECTORS = q_output
-    print("Updated cached feature vectors")
+    # print("Updated cached feature vectors")
     torch.cuda.empty_cache()
