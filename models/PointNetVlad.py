@@ -7,7 +7,6 @@ from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
 import math
-from models.lpdnet_model import LPDNet
 
 class NetVLADLoupe(nn.Module):
     def __init__(self, feature_size, max_samples, cluster_size, output_dim,

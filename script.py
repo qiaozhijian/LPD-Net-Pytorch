@@ -5,7 +5,6 @@ import pynvml
 import os
 from torch.autograd import Variable
 import numpy as np
-
 pynvml.nvmlInit()
 handle = pynvml.nvmlDeviceGetHandleByIndex(0)
 # 这里的0是GPU id
@@ -16,13 +15,11 @@ def print_gpu():
     used = meminfo.used / ratio
     print("used: ", used)
 
-model=2
+def change(a):
+    a = "dae"
+
+
 if __name__ == "__main__":
-    base=[]
-    for i in range(20):
-        a=np.random.randn(4096,3)
-        base.append(a)
-    base=np.asarray(base).reshape(-1,4096,3)
-    b=base[[0,2,15]]
-    print(b.shape)
-    
+    a= "{0:145,1:236}"
+    change(a)
+    print(a)

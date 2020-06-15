@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from loading_pointclouds import *
 from sklearn.neighbors import KDTree
 import torch
-from util.initPara import model,args
+import util.initPara as para
 from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,6 +24,13 @@ for i in tqdm(range(len(TRAINING_QUERIES))):
     pc = load_pc_file(filename)
     TRAINING_POINT_CLOUD.append(pc)
 TRAINING_POINT_CLOUD = np.asarray(TRAINING_POINT_CLOUD).reshape(-1,4096,3)
+
+def flat(l):
+    for k in l:
+        if not isinstance(k, (list, tuple)):
+            yield k
+        else:
+            yield from flat(k)
 
 def get_query_tuple_fast(item, dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other_neg=False):
     # get query tuple for dictionary entry
@@ -46,7 +53,7 @@ def get_query_tuple_fast(item, dict_value, num_pos, num_neg, QUERY_DICT, hard_ne
             if not dict_value["negatives"][j] in hard_neg:
                 neg_indices.append(dict_value["negatives"][j])
             j += 1
-    negatives = TRAINING_POINT_CLOUD[neg_indices]
+    negatives = TRAINING_POINT_CLOUD[flat(neg_indices)]
 
     # print("load time: ",time()-start)
     # 是否需要额外的neg（Quadruplet loss需要）
@@ -169,7 +176,6 @@ class Oxford_train_advance(Dataset):
             print("self.hard_neg_num >  args.negatives_per_query")
         self.last=[]
     def __getitem__(self, item):
-        global model
         if (len(TRAINING_QUERIES[item]["positives"]) < self.positives_per_query):
             print("lack positive")
             if self.last==[]:
@@ -177,7 +183,7 @@ class Oxford_train_advance(Dataset):
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
         if (len(HARD_NEGATIVES.keys()) == 0):
-            query = get_feature_representation(TRAINING_QUERIES[item]['query'], model)
+            query = get_feature_representation(TRAINING_QUERIES[item]['query'], para.model)
             random.shuffle(TRAINING_QUERIES[item]['negatives'])
             negatives = TRAINING_QUERIES[item]['negatives'][0:self.sampled_neg]
             # 找到离当前query最近的neg
@@ -190,7 +196,7 @@ class Oxford_train_advance(Dataset):
         #     如果指定了一些HARD_NEGATIVES，實際沒有
         else:
             query = get_feature_representation(
-                TRAINING_QUERIES[item]['query'], model)
+                TRAINING_QUERIES[item]['query'], para.model)
             random.shuffle(TRAINING_QUERIES[item]['negatives'])
             negatives = TRAINING_QUERIES[item
                         ]['negatives'][0:self.sampled_neg]
@@ -230,11 +236,9 @@ class Oxford_train_advance(Dataset):
         return self.train_len
 
 
-def update_vectors():
+def update_vectors(args, model):
     global TRAINING_LATENT_VECTORS
     global TRAINING_QUERIES
-    global model
-    global args
 
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
 
