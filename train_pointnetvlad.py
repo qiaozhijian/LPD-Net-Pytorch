@@ -93,8 +93,8 @@ def train():
             print("load checkpoint")
             checkpoint = torch.load(para.args.pretrained_path)
             saved_state_dict = checkpoint['state_dict']
-            starting_epoch = checkpoint['epoch']
-            TOTAL_ITERATIONS = starting_epoch * len(TRAINING_QUERIES)
+            starting_epoch = checkpoint['epoch'] + 1
+            TOTAL_ITERATIONS = checkpoint['iter']
             para.model.load_state_dict(saved_state_dict, strict=False)
             optimizer.load_state_dict(checkpoint['optimizer'])
             update_vectors(para.args, para.model)
@@ -126,7 +126,8 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
     global TOTAL_ITERATIONS
     para.model.train()
     optimizer.zero_grad()
-    if epoch <= 5:
+    division_epoch = 5
+    if epoch <= division_epoch:
         for queries, positives, negatives, other_neg in tqdm(loader_base):
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
                 para.model, queries, positives, negatives, other_neg)
@@ -137,6 +138,8 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             optimizer.step()
             train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
+        if epoch == division_epoch:
+            update_vectors(para.args, para.model)
     else:
         for queries, positives, negatives, other_neg in tqdm(loader_advance):
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
