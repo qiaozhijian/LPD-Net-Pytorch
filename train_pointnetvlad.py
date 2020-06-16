@@ -138,9 +138,9 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             optimizer.step()
             train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
-        if epoch == division_epoch:
-            update_vectors(para.args, para.model)
     else:
+        if epoch == division_epoch + 1:
+            update_vectors(para.args, para.model)
         for queries, positives, negatives, other_neg in tqdm(loader_advance):
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
                 para.model, queries, positives, negatives, other_neg)
