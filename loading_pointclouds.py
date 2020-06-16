@@ -8,7 +8,7 @@ def get_queries_dict(filename):
     # key:{'query':file,'positives':[files],'negatives:[files], 'neighbors':[keys]}
     with open(filename, 'rb') as handle:
         queries = pickle.load(handle)
-        print("Pickle Loaded.")
+        print("Queries Loaded.")
         return queries
 
 
@@ -16,7 +16,7 @@ def get_sets_dict(filename):
     #[key_dataset:{key_pointcloud:{'query':file,'northing':value,'easting':value}},key_dataset:{key_pointcloud:{'query':file,'northing':value,'easting':value}}, ...}
     with open(filename, 'rb') as handle:
         trajectories = pickle.load(handle)
-        print("Pickle Loaded.")
+        print("Sets Loaded.")
         return trajectories
 
 
