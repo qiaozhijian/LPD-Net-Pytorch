@@ -149,7 +149,7 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
 
-            if (TOTAL_ITERATIONS % (1500//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
+            if (TOTAL_ITERATIONS % (int(1500 * (epoch-4)*1.2)//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
                 update_vectors(para.args, para.model)
 
 
