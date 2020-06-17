@@ -38,8 +38,6 @@ parser.add_argument('--eval_batch_size', type=int, default=6,
                     help='test Batch Size during training [default: 6]')
 parser.add_argument('--batch_num_queries', type=int, default=2,
                     help='Batch Size during training [default: 2]')
-parser.add_argument('--learning_rate', type=float, default=0.000005,
-                    help='Initial learning rate [default: 0.000005]')
 parser.add_argument('--momentum', type=float, default=0.9,
                     help='Initial learning rate [default: 0.9]')
 parser.add_argument('--optimizer', default='adam',
@@ -72,7 +70,7 @@ parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
                     help='feature net')
 parser.add_argument('--fstn', action='store_true', default=False,
                     help='feature transform')
-parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.00001, metavar='LR',
                         help='learning rate (default: 0.0001, 0.1 if using sgd)')
 parser.add_argument('--emb_dims', type=int, default=1024)
 parser.add_argument('--eval', action='store_true', default=False,
