@@ -78,8 +78,15 @@ parser.add_argument('--emb_dims', type=int, default=1024)
 parser.add_argument('--eval', action='store_true', default=False,
                         help='evaluate the model')
 parser.add_argument('--log_dir', default='checkpoints/', help='Log dir [default: log]')
-
+parser.add_argument('--seed', type=int, default=1234, metavar='S',
+                        help='random seed (default: 1)')
 args = parser.parse_args()
+
+torch.backends.cudnn.deterministic = True
+torch.manual_seed(args.seed)
+torch.cuda.manual_seed_all(args.seed)
+np.random.seed(args.seed)
+
 cfg.DATASET_FOLDER = args.dataset_folder
 if not os.path.exists(args.log_dir):
     os.mkdir(args.log_dir)
