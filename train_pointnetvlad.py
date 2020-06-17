@@ -203,7 +203,7 @@ if __name__ == "__main__":
                 starting_epoch = checkpoint['epoch'] + 1
                 TOTAL_ITERATIONS = checkpoint['iter']
                 para.model.load_state_dict(saved_state_dict, strict=False)
-
-        print(evaluate.evaluate_model(para.model))
+        ave_one_percent_recall = evaluate.evaluate_model(para.model)
+        print("ave_one_percent_recall: ",ave_one_percent_recall)
     else:
         train()
