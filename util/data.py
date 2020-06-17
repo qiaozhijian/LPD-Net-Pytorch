@@ -13,15 +13,16 @@ from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load dictionary of training queries
-TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
-TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
+if not para.args.eval:
+    TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
+    TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
 HARD_NEGATIVES = {}
 TRAINING_LATENT_VECTORS = []
 TRAINING_POINT_CLOUD = []
 
 load_fast=True
 # 这里最好能跟数据生成同步
-if load_fast:
+if load_fast and not para.args.eval:
     print("start load fast")
     DIR="./generating_queries/"
     if os.path.exists(DIR+"TRAINING_POINT_CLOUD.npy"):

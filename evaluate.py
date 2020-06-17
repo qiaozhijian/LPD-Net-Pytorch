@@ -85,6 +85,7 @@ def evaluate_model(model):
         output.write("\n\n")
         output.write("Average Top 1 percent Recall:\n")
         output.write(str(ave_one_percent_recall))
+        output.close()
 
     return ave_one_percent_recall
 

@@ -8,10 +8,10 @@ from tensorboardX import SummaryWriter
 from torch.backends import cudnn
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from util.data import TRAINING_QUERIES, device, update_vectors, Oxford_train_advance, Oxford_train_base
 import util.initPara as para
-from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, MultiStepLR
 from util.initPara import print_gpu
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, MultiStepLR
+from util.data import TRAINING_QUERIES, device, update_vectors, Oxford_train_advance, Oxford_train_base
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
