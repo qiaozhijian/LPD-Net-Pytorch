@@ -16,6 +16,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if not para.args.eval:
     TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
     TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
+else:
+    TRAINING_QUERIES = []
+    TEST_QUERIES = []
 HARD_NEGATIVES = {}
 TRAINING_LATENT_VECTORS = []
 TRAINING_POINT_CLOUD = []
@@ -36,6 +39,8 @@ if load_fast and not para.args.eval:
         TRAINING_POINT_CLOUD = np.asarray(TRAINING_POINT_CLOUD).reshape(-1,4096,3)
         np.save(DIR+"TRAINING_POINT_CLOUD.npy", TRAINING_POINT_CLOUD)
         print("save npy")
+else:
+    TRAINING_POINT_CLOUD = []
 
 def flat(l):
     for k in l:
