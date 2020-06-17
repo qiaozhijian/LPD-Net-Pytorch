@@ -299,7 +299,7 @@ def update_vectors(args, model):
         # index = train_file_idxs[q_index]
         # queries = load_pc_files([TRAINING_QUERIES[index]["query"]])
         queries = TRAINING_POINT_CLOUD[train_file_idxs[q_index]]
-        queries = np.expand_dims(queries, axis=1)
+        queries = np.expand_dims(np.expand_dims(queries, axis=0), axis=0)
 
         with torch.no_grad():
             queries_tensor = torch.from_numpy(queries).float()
