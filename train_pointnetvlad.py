@@ -121,7 +121,9 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
                                  ignore_zero_loss=para.args.loss_ignore_zero_batch)
             loss.backward()
             optimizer.step()
+            train_writer.add_scalar("epoch", epoch, TOTAL_ITERATIONS)
             train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
+            train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
     else:
         if epoch == division_epoch + 1:
@@ -139,7 +141,9 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             # 比较耗时
             loss.backward()
             optimizer.step()
+            train_writer.add_scalar("epoch", epoch, TOTAL_ITERATIONS)
             train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
+            train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
             # log_string("train: ",time()-start)
             if (TOTAL_ITERATIONS % (int(1500 * (epoch-4)*1.2)//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
