@@ -72,6 +72,8 @@ parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
                     help='feature net')
 parser.add_argument('--fstn', action='store_true', default=False,
                     help='feature transform')
+parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
+                        help='learning rate (default: 0.0001, 0.1 if using sgd)')
 parser.add_argument('--emb_dims', type=int, default=1024)
 parser.add_argument('--log_dir', default='checkpoints/', help='Log dir [default: log]')
 
@@ -113,4 +115,12 @@ else:
 # print("model all:")
 # for name, param in model.named_parameters():
 #     print(name)
+
+# 一般情况下模型的requires_grad都为true
+# parameters = filter(lambda p: p.requires_grad, para.model.parameters())
+# parameters2 = filter(lambda p: True, para.model.parameters())
+# import operator
+# print(operator.eq(list(parameters),list(parameters2)))
+# print(set(list(parameters)).difference(set(list(parameters2))))
+
 

@@ -21,3 +21,7 @@ if __name__ == "__main__":
     file_indices = train_file_idxs[5:8]
     print(file_indices)
     print(list(range(5,8)))
+    learning_rate = 0.000005 * ((0.9) ** (0 // 5))
+    learning_rate = max(learning_rate, 0.00001)  # CLIP THE LEARNING RATE!
+    # 1e-05
+    print(learning_rate)

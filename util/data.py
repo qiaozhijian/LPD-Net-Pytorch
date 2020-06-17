@@ -199,11 +199,17 @@ class Oxford_train_advance(Dataset):
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
         if (len(HARD_NEGATIVES.keys()) == 0):
+            from time import time
+            start = time()
             query = get_feature_representation(TRAINING_QUERIES[item]['query'], para.model)
+            # print("data: ",time()-start)
             random.shuffle(TRAINING_QUERIES[item]['negatives'])
+            # print("data: ",time()-start)
             negatives = TRAINING_QUERIES[item]['negatives'][0:self.sampled_neg]
-            # 找到离当前query最近的neg
+            # print("data: ",time()-start)
+            # 找到离当前query最近的neg KDtree比较耗时
             hard_negs = get_random_hard_negatives(query, negatives, self.hard_neg_num)
+            # print("data: ",time()-start)
             # print(hard_negs)
             if load_fast:
                 q_tuples=get_query_tuple_fast(item, TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
@@ -211,6 +217,7 @@ class Oxford_train_advance(Dataset):
             else:
                 q_tuples=get_query_tuple(TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
                                 TRAINING_QUERIES, hard_neg = hard_negs, other_neg=True)
+            # print("data: ",time()-start)
         #     如果指定了一些HARD_NEGATIVES，實際沒有
         else:
             query = get_feature_representation(

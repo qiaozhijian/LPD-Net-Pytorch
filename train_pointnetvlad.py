@@ -10,6 +10,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from util.data import TRAINING_QUERIES, device, update_vectors, Oxford_train_advance, Oxford_train_base
 import util.initPara as para
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, MultiStepLR
 from util.initPara import print_gpu
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,27 +22,14 @@ division_epoch = 5
 
 LOG_FOUT = open(os.path.join(para.args.log_dir, 'log_train.txt'), 'w')
 LOG_FOUT.write(str(para.args) + '\n')
+LOG_FOUT.flush()
 TOTAL_ITERATIONS = 0
-
-BN_DECAY_DECAY_STEP = float(para.args.decay_step)
-
-def get_bn_decay(batch):
-    bn_momentum = cfg.BN_INIT_DECAY * \
-                  (cfg.BN_DECAY_DECAY_RATE **
-                   (batch * para.args.batch_num_queries // BN_DECAY_DECAY_STEP))
-    return min(cfg.BN_DECAY_CLIP, 1 - bn_momentum)
 
 
 def log_string(out_str):
     LOG_FOUT.write(out_str + '\n')
     LOG_FOUT.flush()
     print(out_str)
-
-# learning rate halfed every 5 epoch
-def get_learning_rate(epoch):
-    learning_rate = para.args.learning_rate * ((0.9) ** (epoch // 5))
-    learning_rate = max(learning_rate, 0.00001)  # CLIP THE LEARNING RATE!
-    return learning_rate
 
 
 def inplace_relu(m):
@@ -53,45 +41,42 @@ def inplace_relu(m):
 def train():
     global HARD_NEGATIVES, TOTAL_ITERATIONS
     starting_epoch = 0
-    parameters = filter(lambda p: p.requires_grad, para.model.parameters())
 
-    # bn_decay = get_bn_decay(0)
-
-    # loss = lazy_quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg_vec, MARGIN1, MARGIN2)
     if para.args.loss_function == 'quadruplet':
         # 有了第二项约束，类内间距离应该比内类距离大
+        log_string("use quadruplet_loss")
         loss_function = PNV_loss.quadruplet_loss
     else:
+        log_string("use triplet_loss_wrapper")
         loss_function = PNV_loss.triplet_loss_wrapper
-    learning_rate = get_learning_rate(0)
 
-    train_writer = SummaryWriter(os.path.join(para.args.log_dir, 'train_writer'))
-    # test_writer = SummaryWriter(os.path.join(para.args.log_dir, 'test'))
-    # while (1):
-    #     a=1
     if para.args.optimizer == 'momentum':
-        optimizer = torch.optim.SGD(
-            parameters, learning_rate, momentum=para.args.momentum)
+        log_string("use SGD")
+        optimizer = torch.optim.SGD(para.model.parameters(), para.args.lr, momentum=para.args.momentum)
     elif para.args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(parameters, learning_rate)
+        log_string("use adam")
+        optimizer = torch.optim.Adam(para.model.parameters(), para.args.lr, weight_decay=1e-4)
     else:
+        log_string("optimizer None")
         optimizer = None
         exit(0)
+
+    scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
 
     if torch.cuda.device_count() > 1:
         para.model = nn.DataParallel(para.model)
         # net = torch.nn.parallel.DistributedDataParallel(net)
-        print("Let's use ", torch.cuda.device_count(), " GPUs!")
+        log_string("Let's use ", torch.cuda.device_count(), " GPUs!")
     #
     # print_gpu("0")
     if not os.path.exists(para.args.pretrained_path):
-        print("can't find pretrained model")
+        log_string("can't find pretrained model")
     else:
         if para.args.pretrained_path[-1]=="7":
-            print("load pretrained model")
+            log_string("load pretrained model")
             para.model.load_state_dict(torch.load(para.args.pretrained_path), strict=False)
         else:
-            print("load checkpoint")
+            log_string("load checkpoint")
             checkpoint = torch.load(para.args.pretrained_path)
             saved_state_dict = checkpoint['state_dict']
             starting_epoch = checkpoint['epoch'] + 1
@@ -101,20 +86,18 @@ def train():
             if starting_epoch > division_epoch + 1:
                 update_vectors(para.args, para.model)
 
-    LOG_FOUT.write(cfg.cfg_str())
-    LOG_FOUT.write("\n")
-    LOG_FOUT.flush()
 
+    train_writer = SummaryWriter(os.path.join(para.args.log_dir, 'train_writer'))
     # print_gpu("1")
     loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
     loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
 
     for epoch in range(starting_epoch, para.args.max_epoch):
-        print("epoch: ", epoch)
         log_string('**** EPOCH %03d ****' % (epoch))
-        sys.stdout.flush()
 
         train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance)
+
+        scheduler.step()
 
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
@@ -130,6 +113,7 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
     optimizer.zero_grad()
     if epoch <= division_epoch:
         for queries, positives, negatives, other_neg in tqdm(loader_base):
+
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
                 para.model, queries, positives, negatives, other_neg)
             loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, para.args.margin_1,
@@ -143,16 +127,21 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
         if epoch == division_epoch + 1:
             update_vectors(para.args, para.model)
         for queries, positives, negatives, other_neg in tqdm(loader_advance):
+            from time import time
+            start = time()
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
                 para.model, queries, positives, negatives, other_neg)
+            # log_string("train: ",time()-start)
             loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, para.args.margin_1,
                                  para.args.margin_2, use_min=para.args.triplet_use_best_positives, lazy=para.args.loss_not_lazy,
                                  ignore_zero_loss=para.args.loss_ignore_zero_batch)
+            # log_string("train: ",time()-start)
+            # 比较耗时
             loss.backward()
             optimizer.step()
             train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
-
+            # log_string("train: ",time()-start)
             if (TOTAL_ITERATIONS % (int(1500 * (epoch-4)*1.2)//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
                 update_vectors(para.args, para.model)
 
@@ -168,7 +157,7 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
         'state_dict': model_to_save.state_dict(),
         'optimizer': optimizer.state_dict(),
     },save_name)
-    print("Model Saved As " + save_name)
+    log_string("Model Saved As " + save_name)
 
 
 def run_model(model, queries, positives, negatives, other_neg, require_grad=True):
