@@ -15,6 +15,7 @@ from util.initPara import print_gpu
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 cudnn.enabled = True
+division_epoch = 5
 
 # os.environ['CUDA_LAUNCH_BLOCKING']="1"
 
@@ -97,7 +98,8 @@ def train():
             TOTAL_ITERATIONS = checkpoint['iter']
             para.model.load_state_dict(saved_state_dict, strict=False)
             optimizer.load_state_dict(checkpoint['optimizer'])
-            update_vectors(para.args, para.model)
+            if starting_epoch > division_epoch + 1:
+                update_vectors(para.args, para.model)
 
     LOG_FOUT.write(cfg.cfg_str())
     LOG_FOUT.write("\n")
@@ -126,7 +128,6 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
     global TOTAL_ITERATIONS
     para.model.train()
     optimizer.zero_grad()
-    division_epoch = 5
     if epoch <= division_epoch:
         for queries, positives, negatives, other_neg in tqdm(loader_base):
             output_queries, output_positives, output_negatives, output_other_neg = run_model(

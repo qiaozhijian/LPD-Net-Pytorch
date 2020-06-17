@@ -15,24 +15,9 @@ def print_gpu():
     used = meminfo.used / ratio
     print("used: ", used)
 
-def change(a):
-    a = "dae"
-
-
-import cv2
-import numpy
-
-cap = cv2.VideoCapture(0)  # 调整参数实现读取视频或调用摄像头
-while 1:
-    ret, frame = cap.read()
-    cv2.imshow("cap", frame)
-    if cv2.waitKey(delay=100) & 0xff == ord('q'):
-        break
-cap.release()
-cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
-    a= "{0:145,1:236}"
-    change(a)
-    print(a)
+    train_file_idxs = np.arange(0,100)
+    file_indices = train_file_idxs[5:8]
+    print(file_indices)
+    print(list(range(5,8)))
