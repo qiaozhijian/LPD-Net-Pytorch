@@ -75,6 +75,8 @@ parser.add_argument('--fstn', action='store_true', default=False,
 parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
                         help='learning rate (default: 0.0001, 0.1 if using sgd)')
 parser.add_argument('--emb_dims', type=int, default=1024)
+parser.add_argument('--eval', action='store_true', default=False,
+                        help='evaluate the model')
 parser.add_argument('--log_dir', default='checkpoints/', help='Log dir [default: log]')
 
 args = parser.parse_args()
@@ -85,7 +87,13 @@ if not os.path.exists(args.log_dir):
 model = PNV.PointNetVlad(feature_transform=args.fstn, num_points=args.num_points, featnet=args.featnet,
                          emb_dims=args.emb_dims)
 
-args.exp_name = args.featnet + '-' + datetime.now().strftime("%d-%H-%M-%S")
+if args.eval:
+    file = args.pretrained_path
+    filename = os.path.basename(file)
+    filename = os.path.splitext(filename)[0]
+    args.exp_name = filename + '-' + datetime.now().strftime("%d-%H-%M-%S") + '-test'
+else:
+    args.exp_name = args.featnet + '-' + datetime.now().strftime("%d-%H-%M-%S")
 if not os.path.exists('checkpoints'):
     os.makedirs('checkpoints')
 if not os.path.exists('checkpoints/' + args.exp_name):

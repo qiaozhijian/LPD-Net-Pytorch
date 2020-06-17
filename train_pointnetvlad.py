@@ -183,4 +183,27 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
 
 
 if __name__ == "__main__":
-    train()
+    if para.args.eval:
+        if torch.cuda.device_count() > 1:
+            para.model = nn.DataParallel(para.model)
+            # net = torch.nn.parallel.DistributedDataParallel(net)
+            log_string("Let's use ", torch.cuda.device_count(), " GPUs!")
+        #
+        # print_gpu("0")
+        if not os.path.exists(para.args.pretrained_path):
+            log_string("can't find pretrained model")
+        else:
+            if para.args.pretrained_path[-1] == "7":
+                log_string("load pretrained model")
+                para.model.load_state_dict(torch.load(para.args.pretrained_path), strict=False)
+            else:
+                log_string("load checkpoint")
+                checkpoint = torch.load(para.args.pretrained_path)
+                saved_state_dict = checkpoint['state_dict']
+                starting_epoch = checkpoint['epoch'] + 1
+                TOTAL_ITERATIONS = checkpoint['iter']
+                para.model.load_state_dict(saved_state_dict, strict=False)
+
+        print(evaluate.evaluate_model(para.model))
+    else:
+        train()

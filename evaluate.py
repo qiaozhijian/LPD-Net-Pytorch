@@ -6,13 +6,9 @@ import torch.nn as nn
 from torch.backends import cudnn
 from sklearn.neighbors import KDTree
 from tqdm import tqdm
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
-
+import util.initPara as para
 from loading_pointclouds import *
 import util.PointNetVlad as PNV
-
 import config as cfg
 
 cudnn.enabled = True
@@ -21,30 +17,23 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 recall_num = 25
 
+cfg.EVAL_DATABASE_FILE = 'generating_queries/oxford_evaluation_database.pickle'
+cfg.EVAL_QUERY_FILE = 'generating_queries/oxford_evaluation_query.pickle'
 DATABASE_SETS = get_sets_dict(cfg.EVAL_DATABASE_FILE)
 QUERY_SETS = get_sets_dict(cfg.EVAL_QUERY_FILE)
 
+LOG_FOUT = open(os.path.join(para.args.log_dir, 'log_train.txt'), 'w')
+LOG_FOUT.write(str(para.args) + '\n')
+LOG_FOUT.flush()
+TOTAL_ITERATIONS = 0
 
-def evaluate():
-    model = PNV.PointNetVlad(global_feat=True, feature_transform=False, max_pool=False,
-                                      output_dim=cfg.FEATURE_OUTPUT_DIM, num_points=cfg.NUM_POINTS, featnet = "pointnet")
-    model = model.to(device)
 
-    resume_filename = cfg.LOG_DIR + cfg.MODEL_FILENAME
-    print("Resuming From ", resume_filename)
-    checkpoint = torch.load(resume_filename)
-    saved_state_dict = checkpoint['state_dict']
-    model.load_state_dict(saved_state_dict)
-
-    model = nn.DataParallel(model)
-
-    print(evaluate_model(model))
-
+def log_string(out_str):
+    LOG_FOUT.write(out_str + '\n')
+    LOG_FOUT.flush()
+    print(out_str)
 
 def evaluate_model(model):
-    if not os.path.exists(cfg.RESULTS_FOLDER):
-        os.mkdir(cfg.RESULTS_FOLDER)
-
     # 计算 Recall @N
     recall = np.zeros(recall_num)
     count = 0
@@ -86,6 +75,7 @@ def evaluate_model(model):
     ave_one_percent_recall = np.mean(one_percent_recall)
     # print(ave_one_percent_recall)
 
+    cfg.OUTPUT_FILE = os.path.join(cfg.RESULTS_FOLDER, "result.txt")
     with open(cfg.OUTPUT_FILE, "w") as output:
         output.write("Average Recall @N:\n")
         output.write(str(ave_recall))
@@ -105,8 +95,8 @@ def get_latent_vectors(model, dict_to_process):
     is_training = False
     train_file_idxs = np.arange(0, len(dict_to_process.keys()))
 
-    batch_num = cfg.EVAL_BATCH_SIZE * \
-        (1 + cfg.EVAL_POSITIVES_PER_QUERY + cfg.EVAL_NEGATIVES_PER_QUERY)
+    batch_num = para.args.eval_batch_size * \
+        (1 + para.args.positives_per_query + para.args.negatives_per_query)
     q_output = []
     for q_index in range(len(train_file_idxs)//batch_num):
         file_indices = train_file_idxs[q_index *
@@ -210,47 +200,24 @@ def get_recall(m, n, DATABASE_VECTORS, QUERY_VECTORS, QUERY_SETS):
 
 
 if __name__ == "__main__":
-    # params
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--positives_per_query', type=int, default=4,
-                        help='Number of potential positives in each training tuple [default: 2]')
-    parser.add_argument('--negatives_per_query', type=int, default=12,
-                        help='Number of definite negatives in each training tuple [default: 20]')
-    parser.add_argument('--eval_batch_size', type=int, default=12,
-                        help='Batch Size during training [default: 1]')
-    parser.add_argument('--dimension', type=int, default=256)
-    parser.add_argument('--decay_step', type=int, default=200000,
-                        help='Decay step for lr decay [default: 200000]')
-    parser.add_argument('--decay_rate', type=float, default=0.7,
-                        help='Decay rate for lr decay [default: 0.8]')
-    parser.add_argument('--results_dir', default='results/',
-                        help='results dir [default: results]')
-    parser.add_argument('--dataset_folder', default='./benchmark_datasets/',
-                        help='PointNetVlad Dataset Folder')
-    parser.add_argument('--model_name', default='model.ckpt')
-    parser.add_argument('--model_path', default='')
-    FLAGS = parser.parse_args()
+    if torch.cuda.device_count() > 1:
+        para.model = nn.DataParallel(para.model)
+        # net = torch.nn.parallel.DistributedDataParallel(net)
+        log_string("Let's use ", torch.cuda.device_count(), " GPUs!")
+    #
+    # print_gpu("0")
+    if not os.path.exists(para.args.pretrained_path):
+        log_string("can't find pretrained model")
+    else:
+        if para.args.pretrained_path[-1] == "7":
+            log_string("load pretrained model")
+            para.model.load_state_dict(torch.load(para.args.pretrained_path), strict=False)
+        else:
+            log_string("load checkpoint")
+            checkpoint = torch.load(para.args.pretrained_path)
+            saved_state_dict = checkpoint['state_dict']
+            starting_epoch = checkpoint['epoch'] + 1
+            TOTAL_ITERATIONS = checkpoint['iter']
+            para.model.load_state_dict(saved_state_dict, strict=False)
 
-    #BATCH_SIZE = FLAGS.batch_size
-    #cfg.EVAL_BATCH_SIZE = FLAGS.eval_batch_size
-    cfg.NUM_POINTS = 4096
-    cfg.FEATURE_OUTPUT_DIM = 256
-    cfg.EVAL_POSITIVES_PER_QUERY = FLAGS.positives_per_query
-    cfg.EVAL_NEGATIVES_PER_QUERY = FLAGS.negatives_per_query
-    cfg.DECAY_STEP = FLAGS.decay_step
-    cfg.DECAY_RATE = FLAGS.decay_rate
-
-    cfg.RESULTS_FOLDER = FLAGS.results_dir
-
-    cfg.EVAL_DATABASE_FILE = 'generating_queries/oxford_evaluation_database.pickle'
-    cfg.EVAL_QUERY_FILE = 'generating_queries/oxford_evaluation_query.pickle'
-
-    cfg.LOG_DIR = FLAGS.model_path
-    if cfg.LOG_DIR[-1]!='/':
-        cfg.LOG_DIR = cfg.LOG_DIR + '/'
-    cfg.RESULTS_FOLDER = cfg.LOG_DIR + cfg.RESULTS_FOLDER
-    cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + FLAGS.model_name + '_results.txt'
-    cfg.MODEL_FILENAME = FLAGS.model_name
-    cfg.DATASET_FOLDER = FLAGS.dataset_folder
-
-    evaluate()
+    print(evaluate_model(para.model))
