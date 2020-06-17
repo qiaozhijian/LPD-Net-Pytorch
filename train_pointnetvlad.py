@@ -66,7 +66,7 @@ def train():
     if torch.cuda.device_count() > 1:
         para.model = nn.DataParallel(para.model)
         # net = torch.nn.parallel.DistributedDataParallel(net)
-        log_string("Let's use ", torch.cuda.device_count(), " GPUs!")
+        log_string("Let's use "+ str(torch.cuda.device_count())+ " GPUs!")
     #
     # print_gpu("0")
     if not os.path.exists(para.args.pretrained_path):
