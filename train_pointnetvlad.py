@@ -207,3 +207,4 @@ if __name__ == "__main__":
         print("ave_one_percent_recall: ",ave_one_percent_recall)
     else:
         train()
+    print("finish")
