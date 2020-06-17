@@ -41,6 +41,7 @@ def inplace_relu(m):
 def train():
     global HARD_NEGATIVES, TOTAL_ITERATIONS
     starting_epoch = 0
+    eval_one_percent_recall = 0
 
     if para.args.loss_function == 'quadruplet':
         # 有了第二项约束，类内间距离应该比内类距离大
@@ -95,25 +96,38 @@ def train():
     for epoch in range(starting_epoch, para.args.max_epoch):
         log_string('**** EPOCH %03d ****' % (epoch))
 
-        train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance)
-
-        scheduler.step()
+        train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall)
 
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
         eval_one_percent_recall = evaluate.evaluate_model(para.model)
         log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
 
+        if isinstance(para.model, nn.DataParallel):
+            model_to_save = para.model.module
+        else:
+            model_to_save = para.model
+        save_name = para.args.model_save_path + '/' + str(epoch) + "-" + cfg.MODEL_FILENAME
+        torch.save({
+            'epoch': epoch,
+            'iter': TOTAL_ITERATIONS,
+            'state_dict': model_to_save.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'recall': eval_one_percent_recall,
+        }, save_name)
+        log_string("Model Saved As " + save_name)
+
+        scheduler.step()
+
         train_writer.add_scalar("Val Recall", eval_one_percent_recall, epoch)
 
 
-def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance):
+def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall):
     global TOTAL_ITERATIONS
     para.model.train()
     optimizer.zero_grad()
     if epoch <= division_epoch:
         for queries, positives, negatives, other_neg in tqdm(loader_base):
-
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
                 para.model, queries, positives, negatives, other_neg)
             loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, para.args.margin_1,
@@ -148,21 +162,6 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             # log_string("train: ",time()-start)
             if (TOTAL_ITERATIONS % (int(1500 * (epoch-4)*1.2)//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
                 update_vectors(para.args, para.model)
-
-
-    if isinstance(para.model, nn.DataParallel):
-        model_to_save = para.model.module
-    else:
-        model_to_save = para.model
-    save_name = para.args.model_save_path + '/' + str(epoch) + "-" + cfg.MODEL_FILENAME
-    torch.save({
-        'epoch': epoch,
-        'iter': TOTAL_ITERATIONS,
-        'state_dict': model_to_save.state_dict(),
-        'optimizer': optimizer.state_dict(),
-    },save_name)
-    log_string("Model Saved As " + save_name)
-
 
 def run_model(model, queries, positives, negatives, other_neg, require_grad=True):
     # print_gpu("2")
