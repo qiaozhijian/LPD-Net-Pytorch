@@ -85,8 +85,9 @@ def train():
             if starting_epoch > division_epoch + 1:
                 update_vectors(para.args, para.model)
 
-    scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
-
+    # scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
+    # recall 停止上升时
+    scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.1, patience=1, verbose=True)
 
     train_writer = SummaryWriter(os.path.join(para.args.log_dir, 'train_writer'))
     # print_gpu("1")
@@ -117,7 +118,8 @@ def train():
         }, save_name)
         log_string("Model Saved As " + save_name)
 
-        scheduler.step()
+        # scheduler.step()
+        scheduler.step(eval_one_percent_recall)
 
         train_writer.add_scalar("Val Recall", eval_one_percent_recall, epoch)
 
@@ -139,6 +141,13 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
+
+            if (TOTAL_ITERATIONS % (int(1200 * (epoch+1)*1.2)//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
+                log_string('EVALUATING...')
+                eval_one_percent_recall = evaluate.evaluate_model(para.model)
+                log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
+                train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+
     else:
         if epoch == division_epoch + 1:
             update_vectors(para.args, para.model)
@@ -160,8 +169,12 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
             # log_string("train: ",time()-start)
-            if (TOTAL_ITERATIONS % (int(1500 * (epoch-4)*1.2)//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
+            if (TOTAL_ITERATIONS % (int(1200 * (epoch-division_epoch)*1.2)//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
                 update_vectors(para.args, para.model)
+                log_string('EVALUATING...')
+                eval_one_percent_recall = evaluate.evaluate_model(para.model)
+                log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
+                train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
 
 def run_model(model, queries, positives, negatives, other_neg, require_grad=True):
     # print_gpu("2")

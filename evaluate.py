@@ -33,7 +33,7 @@ def log_string(out_str):
     LOG_FOUT.flush()
     print(out_str)
 
-def evaluate_model(model):
+def evaluate_model(model, save_flag=True):
     # 计算 Recall @N
     recall = np.zeros(recall_num)
     count = 0
@@ -42,6 +42,8 @@ def evaluate_model(model):
 
     DATABASE_VECTORS = []
     QUERY_VECTORS = []
+
+    torch.cuda.empty_cache()
 
     # 总共23个子图
     # 获得每个子地图的每一帧点云的描述子
@@ -52,6 +54,7 @@ def evaluate_model(model):
     for j in tqdm(range(len(QUERY_SETS))):
         QUERY_VECTORS.append(get_latent_vectors(model, QUERY_SETS[j]))
 
+    torch.cuda.empty_cache()
     for m in tqdm(range(len(QUERY_SETS))):
         for n in range(len(QUERY_SETS)):
             if (m == n):
@@ -75,18 +78,18 @@ def evaluate_model(model):
     ave_one_percent_recall = np.mean(one_percent_recall)
     # print(ave_one_percent_recall)
 
-    cfg.OUTPUT_FILE = os.path.join(cfg.RESULTS_FOLDER, "result.txt")
-    with open(cfg.OUTPUT_FILE, "w") as output:
-        output.write("Average Recall @N:\n")
-        output.write(str(ave_recall))
-        output.write("\n\n")
-        output.write("Average top1 Similarity:\n")
-        output.write(str(average_similarity_score))
-        output.write("\n\n")
-        output.write("Average Top 1 percent Recall:\n")
-        output.write(str(ave_one_percent_recall))
-        output.close()
-
+    if save_flag:
+        cfg.OUTPUT_FILE = os.path.join(cfg.RESULTS_FOLDER, "result.txt")
+        with open(cfg.OUTPUT_FILE, "w") as output:
+            output.write("Average Recall @N:\n")
+            output.write(str(ave_recall))
+            output.write("\n\n")
+            output.write("Average top1 Similarity:\n")
+            output.write(str(average_similarity_score))
+            output.write("\n\n")
+            output.write("Average Top 1 percent Recall:\n")
+            output.write(str(ave_one_percent_recall))
+            output.close()
     return ave_one_percent_recall
 
 
