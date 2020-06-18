@@ -1,5 +1,5 @@
 # PCPR-Net
-该代码改自PointNetVlad(https://github.com/mikacuy/pointnetvlad)， 并参考借鉴了LPD-Net(https://github.com/Suoivy/LPD-net)
+该代码改自PointNetVlad[here](https://github.com/mikacuy/pointnetvlad)， 并参考借鉴了LPD-Net[here](https://github.com/Suoivy/LPD-net)
 
 ### Pre-Requisites
 * PyTorch 1.4.0
