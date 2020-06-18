@@ -71,7 +71,7 @@ parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
                     help='feature net')
 parser.add_argument('--fstn', action='store_true', default=False,
                     help='feature transform')
-parser.add_argument('--lr', type=float, default=0.00001, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.000005, metavar='LR',
                         help='learning rate (default: 0.0001, 0.1 if using sgd)')
 parser.add_argument('--emb_dims', type=int, default=1024)
 parser.add_argument('--eval', action='store_true', default=False,
