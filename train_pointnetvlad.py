@@ -128,6 +128,12 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
     global TOTAL_ITERATIONS
     para.model.train()
     optimizer.zero_grad()
+
+    log_string('EVALUATING first...')
+    eval_one_percent_recall = evaluate.evaluate_model(para.model)
+    log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
+    train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+
     if epoch <= division_epoch:
         for queries, positives, negatives, other_neg in tqdm(loader_base):
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
