@@ -6,6 +6,7 @@ import numpy as np
 import config as cfg
 import util.PointNetVlad as PNV
 import pynvml
+from dateutil import tz
 
 pynvml.nvmlInit()
 handle0 = pynvml.nvmlDeviceGetHandleByIndex(0)
@@ -96,9 +97,11 @@ if args.eval:
     file = args.pretrained_path
     filename = os.path.basename(file)
     filename = os.path.splitext(filename)[0]
-    args.exp_name = filename + '-' + datetime.now().strftime("%d-%H-%M-%S") + '-test'
+    tz_sh = tz.gettz('Asia/Shanghai')
+    args.exp_name = filename + '-' + datetime.now(tz=tz_sh).strftime("%d-%H-%M-%S") + '-test'
 else:
-    args.exp_name = args.featnet + '-' + datetime.now().strftime("%d-%H-%M-%S")
+    tz_sh = tz.gettz('Asia/Shanghai')
+    args.exp_name = args.featnet + '-' + datetime.now(tz=tz_sh).strftime("%d-%H-%M-%S")
 if not os.path.exists('checkpoints'):
     os.makedirs('checkpoints')
 if not os.path.exists('checkpoints/' + args.exp_name):

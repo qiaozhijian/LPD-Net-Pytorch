@@ -16,9 +16,14 @@ def print_gpu():
     print("used: ", used)
 
 
-if __name__ == "__main__":
-    file = "./pretrained/pointnet.ckpt"
-    print(os.path.dirname(os.path.realpath(file)))
-    filename = os.path.basename(file)
-    print(filename)
-    print(os.path.splitext(filename)[0])
+from datetime import datetime
+from dateutil import tz, zoneinfo
+
+if __name__ == '__main__':
+    # use timezone
+    tz_sh = tz.gettz('Asia/Shanghai')
+    # Shanghai timezone
+    now_sh = datetime.now(tz=tz_sh)
+    print(now_sh)
+    now_sh = datetime.now()
+    print(now_sh)
