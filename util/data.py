@@ -273,7 +273,7 @@ def update_vectors(args, model):
     global TRAINING_LATENT_VECTORS
     global TRAINING_QUERIES
 
-    # torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
 
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
 
@@ -285,7 +285,7 @@ def update_vectors(args, model):
 
     for q_index in tqdm(range(len(train_file_idxs) // batch_num)):
     # for q_index in tqdm(range(batch_num*2 // batch_num)):
-        file_indices = train_file_idxs[q_index * batch_num:(q_index + 1) * (batch_num)]
+    #     file_indices = train_file_idxs[q_index * batch_num:(q_index + 1) * (batch_num)]
         # file_names = []
         # for index in file_indices:
         #     file_names.append(TRAINING_QUERIES[index]["query"])
@@ -331,4 +331,4 @@ def update_vectors(args, model):
 
     TRAINING_LATENT_VECTORS = q_output
     # print("Updated cached feature vectors")
-    # torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
