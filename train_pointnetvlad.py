@@ -62,8 +62,6 @@ def train():
         optimizer = None
         exit(0)
 
-    scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
-
     if torch.cuda.device_count() > 1:
         para.model = nn.DataParallel(para.model)
         # net = torch.nn.parallel.DistributedDataParallel(net)
@@ -86,6 +84,8 @@ def train():
             optimizer.load_state_dict(checkpoint['optimizer'])
             if starting_epoch > division_epoch + 1:
                 update_vectors(para.args, para.model)
+
+    scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
 
 
     train_writer = SummaryWriter(os.path.join(para.args.log_dir, 'train_writer'))
