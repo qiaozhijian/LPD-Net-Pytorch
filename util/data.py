@@ -53,7 +53,7 @@ def get_query_tuple_fast(item, dict_value, num_pos, num_neg, QUERY_DICT, hard_ne
     # get query tuple for dictionary entry
     # return list [query,positives,negatives]
     start = time()
-    query = TRAINING_POINT_CLOUD[item] # 就一个
+    query = TRAINING_POINT_CLOUD[item] # 就一个点云
     random.shuffle(dict_value["positives"])
     # 不必考虑正样本是否充足，因为之前判断过
     positives = TRAINING_POINT_CLOUD[(dict_value["positives"][:num_pos])]

@@ -44,18 +44,22 @@ def evaluate_model(model, save_flag=True):
     QUERY_VECTORS = []
 
     torch.cuda.empty_cache()
+    if save_flag:
+        fun_tqdm = tqdm
+    else:
+        fun_tqdm = list
 
     # 总共23个子图
     # 获得每个子地图的每一帧点云的描述子
-    for i in tqdm(range(len(DATABASE_SETS))):
+    for i in fun_tqdm(range(len(DATABASE_SETS))):
         DATABASE_VECTORS.append(get_latent_vectors(model, DATABASE_SETS[i]))
 
     # 获得每个子地图的每一帧要被评估的点云的描述子
-    for j in tqdm(range(len(QUERY_SETS))):
+    for j in fun_tqdm(range(len(QUERY_SETS))):
         QUERY_VECTORS.append(get_latent_vectors(model, QUERY_SETS[j]))
 
     torch.cuda.empty_cache()
-    for m in tqdm(range(len(QUERY_SETS))):
+    for m in fun_tqdm(range(len(QUERY_SETS))):
         for n in range(len(QUERY_SETS)):
             if (m == n):
                 continue
@@ -96,7 +100,6 @@ def evaluate_model(model, save_flag=True):
 def get_latent_vectors(model, dict_to_process):
 
     model.eval()
-    is_training = False
     train_file_idxs = np.arange(0, len(dict_to_process.keys()))
 
     batch_num = para.args.eval_batch_size * \

@@ -61,42 +61,44 @@ def train():
         log_string("optimizer None")
         optimizer = None
         exit(0)
-
-    if torch.cuda.device_count() > 1:
-        para.model = nn.DataParallel(para.model)
-        # net = torch.nn.parallel.DistributedDataParallel(net)
-        log_string("Let's use "+ str(torch.cuda.device_count())+ " GPUs!")
     #
     # print_gpu("0")
     if not os.path.exists(para.args.pretrained_path):
-        log_string("can't find pretrained model")
+        log_string("can't find pretrained model" + para.args.pretrained_path)
     else:
         if para.args.pretrained_path[-1]=="7":
-            log_string("load pretrained model")
-            para.model.load_state_dict(torch.load(para.args.pretrained_path), strict=False)
+            log_string("load pretrained model" + para.args.pretrained_path)
+            para.model.load_state_dict(torch.load(para.args.pretrained_path), strict=True)
         else:
-            log_string("load checkpoint")
             checkpoint = torch.load(para.args.pretrained_path)
             saved_state_dict = checkpoint['state_dict']
             starting_epoch = checkpoint['epoch'] + 1
             TOTAL_ITERATIONS = checkpoint['iter']
-            para.model.load_state_dict(saved_state_dict, strict=False)
+            para.model.load_state_dict(saved_state_dict, strict=True)
             optimizer.load_state_dict(checkpoint['optimizer'])
-            if starting_epoch > division_epoch + 1:
-                update_vectors(para.args, para.model)
+            log_string("load checkpoint" + para.args.pretrained_path+ " starting_epoch: "+ str(starting_epoch))
+    if torch.cuda.device_count() > 1:
+        para.model = nn.DataParallel(para.model)
+        log_string("Let's use "+ str(torch.cuda.device_count())+ " GPUs!")
+    if starting_epoch > division_epoch + 1:
+        update_vectors(para.args, para.model)
 
     # scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
     # recall 停止上升时
-    scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.1, patience=1, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.2, patience=1, verbose=True)
 
     train_writer = SummaryWriter(os.path.join(para.args.log_dir, 'train_writer'))
     # print_gpu("1")
     loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
     loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
 
+    log_string('EVALUATING first...')
+    eval_one_percent_recall = evaluate.evaluate_model(para.model)
+    log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
+    train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+
     for epoch in range(starting_epoch, para.args.max_epoch):
         log_string('**** EPOCH %03d ****' % (epoch))
-
         train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall)
 
         log_string('EVALUATING...')
@@ -129,11 +131,6 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
     para.model.train()
     optimizer.zero_grad()
 
-    log_string('EVALUATING first...')
-    eval_one_percent_recall = evaluate.evaluate_model(para.model)
-    log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
-    train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
-
     if epoch <= division_epoch:
         for queries, positives, negatives, other_neg in tqdm(loader_base):
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
@@ -148,9 +145,9 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
 
-            if (TOTAL_ITERATIONS % (int(1200 * (epoch+1)*1.2)//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
-                log_string('EVALUATING...')
-                eval_one_percent_recall = evaluate.evaluate_model(para.model)
+            if (TOTAL_ITERATIONS % (3600 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
+                # log_string('EVALUATING...')
+                eval_one_percent_recall = evaluate.evaluate_model(para.model,save_flag=False)
                 log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
                 train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
 
@@ -175,12 +172,14 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
             # log_string("train: ",time()-start)
-            if (TOTAL_ITERATIONS % (int(1200 * (epoch-division_epoch)*1.2)//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
+            if (TOTAL_ITERATIONS % (int(1200 + 300 * (epoch-division_epoch))//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
                 update_vectors(para.args, para.model)
-                log_string('EVALUATING...')
-                eval_one_percent_recall = evaluate.evaluate_model(para.model)
+            if (TOTAL_ITERATIONS % (3600 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
+                # log_string('EVALUATING...')
+                eval_one_percent_recall = evaluate.evaluate_model(para.model,save_flag=False)
                 log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
                 train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+
 
 def run_model(model, queries, positives, negatives, other_neg, require_grad=True):
     # print_gpu("2")
@@ -202,26 +201,29 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
 
 if __name__ == "__main__":
     if para.args.eval:
-        if torch.cuda.device_count() > 1:
-            para.model = nn.DataParallel(para.model)
-            # net = torch.nn.parallel.DistributedDataParallel(net)
-            log_string("Let's use "+ str(torch.cuda.device_count())+ " GPUs!")
+        log_string("start eval!")
         #
         # print_gpu("0")
+        # ave_one_percent_recall = evaluate.evaluate_model(para.model)
+        # print("ave_one_percent_recall: ",ave_one_percent_recall)
         if not os.path.exists(para.args.pretrained_path):
-            log_string("can't find pretrained model")
+            log_string("can't find pretrained model" + para.args.pretrained_path)
         else:
             if para.args.pretrained_path[-1] == "7":
-                log_string("load pretrained model")
-                para.model.load_state_dict(torch.load(para.args.pretrained_path), strict=False)
+                log_string("load pretrained model" + para.args.pretrained_path)
+                para.model.load_state_dict(torch.load(para.args.pretrained_path), strict=True)
             else:
-                log_string("load checkpoint")
                 checkpoint = torch.load(para.args.pretrained_path)
                 saved_state_dict = checkpoint['state_dict']
                 starting_epoch = checkpoint['epoch'] + 1
                 TOTAL_ITERATIONS = checkpoint['iter']
-                para.model.load_state_dict(saved_state_dict, strict=False)
-        ave_one_percent_recall = evaluate.evaluate_model(para.model)
+                para.model.load_state_dict(saved_state_dict, strict=True)
+                log_string("load checkpoint success" + para.args.pretrained_path+" starting_epoch: "+str(starting_epoch))
+        # 加载网络参数需要在并行之前，因为并行会加“module”
+        if torch.cuda.device_count() > 1:
+            para.model = nn.DataParallel(para.model)
+            log_string("Let's use "+ str(torch.cuda.device_count())+ " GPUs!")
+        ave_one_percent_recall = evaluate.evaluate_model(para.model,save_flag=False)
         print("ave_one_percent_recall: ",ave_one_percent_recall)
     else:
         train()
