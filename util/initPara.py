@@ -55,7 +55,7 @@ parser.add_argument('--margin_2', type=float, default=0.2,
                     help='Margin for hinge loss [default: 0.2]')
 parser.add_argument('--loss_function', default='quadruplet', choices=[
     'triplet', 'quadruplet'], help='triplet or quadruplet [default: quadruplet]')
-parser.add_argument('--loss_not_lazy', action='store_false',
+parser.add_argument('--loss_lazy', action='store_false',
                     help='If present, do not use lazy variant of loss')
 parser.add_argument('--loss_ignore_zero_batch', action='store_true',
                     help='If present, mean only batches with loss > 0.0')

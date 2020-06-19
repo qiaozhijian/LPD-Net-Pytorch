@@ -99,8 +99,8 @@ def train():
 
     for epoch in range(starting_epoch, para.args.max_epoch):
         log_string('**** EPOCH %03d ****' % (epoch))
-        train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall)
-
+        # train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall)
+        train_one_epoch_old(para.model,optimizer, train_writer, loss_function, epoch)
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
         eval_one_percent_recall = evaluate.evaluate_model(para.model)
@@ -161,7 +161,7 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
                 para.model, queries, positives, negatives, other_neg)
             # log_string("train: ",time()-start)
             loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, para.args.margin_1,
-                                 para.args.margin_2, use_min=para.args.triplet_use_best_positives, lazy=para.args.loss_not_lazy,
+                                 para.args.margin_2, use_min=para.args.triplet_use_best_positives, lazy=para.args.loss_lazy,
                                  ignore_zero_loss=para.args.loss_ignore_zero_batch)
             # log_string("train: ",time()-start)
             # 比较耗时
@@ -305,7 +305,7 @@ def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
 
         output_queries, output_positives, output_negatives, output_other_neg = run_model(
             model, queries, positives, negatives, other_neg)
-        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, cfg.MARGIN_1, cfg.MARGIN_2, use_min=cfg.TRIPLET_USE_BEST_POSITIVES, lazy=cfg.LOSS_LAZY, ignore_zero_loss=cfg.LOSS_IGNORE_ZERO_BATCH)
+        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, cfg.MARGIN_1, cfg.MARGIN_2, use_min=False, lazy=True, ignore_zero_loss=False)
         loss.backward()
         optimizer.step()
 
@@ -320,20 +320,19 @@ def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
                 model, TRAINING_QUERIES)
             print("Updated cached feature vectors")
 
-        if (i % (6000 // para.args.batch_num_queries) == 101):
-            if isinstance(model, nn.DataParallel):
-                model_to_save = model.module
-            else:
-                model_to_save = model
-            save_name = cfg.LOG_DIR + cfg.MODEL_FILENAME
-            torch.save({
-                'epoch': epoch,
-                'iter': TOTAL_ITERATIONS,
-                'state_dict': model_to_save.state_dict(),
-                'optimizer': optimizer.state_dict(),
-            },
-                save_name)
-            print("Model Saved As " + save_name)
+        # if (TOTAL_ITERATIONS % (1000 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
+        #     if isinstance(para.model, nn.DataParallel):
+        #         model_to_save = model.module
+        #     else:
+        #         model_to_save = model
+        #     save_name = para.args.model_save_path + '/' + str(epoch) + "-" + cfg.MODEL_FILENAME
+        #     torch.save({
+        #         'epoch': epoch,
+        #         'iter': TOTAL_ITERATIONS,
+        #         'state_dict': model_to_save.state_dict(),
+        #         'optimizer': optimizer.state_dict(),
+        #     }, save_name)
+        #     log_string("Model Saved As " + save_name)
 
 
 if __name__ == "__main__":
