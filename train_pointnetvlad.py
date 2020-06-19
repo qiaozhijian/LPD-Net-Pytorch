@@ -198,6 +198,143 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
         output, [1, para.args.positives_per_query, para.args.negatives_per_query, 1], dim=1)
     return o1, o2, o3, o4
 
+def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
+    global HARD_NEGATIVES
+    global TRAINING_LATENT_VECTORS, TOTAL_ITERATIONS
+    from util.data import get_feature_representation,get_query_tuple,get_random_hard_negatives
+    from evaluate import get_latent_vectors
+    is_training = True
+    sampled_neg = 4000
+    # number of hard negatives in the training tuple
+    # which are taken from the sampled negatives
+    num_to_take = 10
+
+    # Shuffle train files
+    train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
+    np.random.shuffle(train_file_idxs)
+
+    for i in range(len(train_file_idxs)//para.args.batch_num_queries):
+        # for i in range (5):
+        batch_keys = train_file_idxs[i *
+                                     para.args.batch_num_queries:(i+1)*para.args.batch_num_queries]
+        q_tuples = []
+
+        faulty_tuple = False
+        no_other_neg = False
+        for j in range(para.args.batch_num_queries):
+            if (len(TRAINING_QUERIES[batch_keys[j]]["positives"]) < para.args.positives_per_query):
+                faulty_tuple = True
+                break
+
+            # no cached feature vectors
+            if (len(TRAINING_LATENT_VECTORS) == 0):
+                q_tuples.append(
+                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], para.args.positives_per_query, para.args.negatives_per_query,
+                                    TRAINING_QUERIES, hard_neg=[], other_neg=True))
+                # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
+                # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
+
+            elif (len(HARD_NEGATIVES.keys()) == 0):
+                query = get_feature_representation(
+                    TRAINING_QUERIES[batch_keys[j]]['query'], model)
+                random.shuffle(TRAINING_QUERIES[batch_keys[j]]['negatives'])
+                negatives = TRAINING_QUERIES[batch_keys[j]
+                                             ]['negatives'][0:sampled_neg]
+                hard_negs = get_random_hard_negatives(
+                    query, negatives, num_to_take)
+                print(hard_negs)
+                q_tuples.append(
+                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], para.args.positives_per_query, para.args.negatives_per_query,
+                                    TRAINING_QUERIES, hard_negs, other_neg=True))
+                # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
+                # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
+            else:
+                query = get_feature_representation(
+                    TRAINING_QUERIES[batch_keys[j]]['query'], model)
+                random.shuffle(TRAINING_QUERIES[batch_keys[j]]['negatives'])
+                negatives = TRAINING_QUERIES[batch_keys[j]
+                                             ]['negatives'][0:sampled_neg]
+                hard_negs = get_random_hard_negatives(
+                    query, negatives, num_to_take)
+                hard_negs = list(set().union(
+                    HARD_NEGATIVES[batch_keys[j]], hard_negs))
+                print('hard', hard_negs)
+                q_tuples.append(
+                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], para.args.positives_per_query, para.args.negatives_per_query,
+                                    TRAINING_QUERIES, hard_negs, other_neg=True))
+                # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
+                # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
+
+            if (q_tuples[j][3].shape[0] != cfg.NUM_POINTS):
+                no_other_neg = True
+                break
+
+        if(faulty_tuple):
+            log_string('----' + str(i) + '-----')
+            log_string('----' + 'FAULTY TUPLE' + '-----')
+            continue
+
+        if(no_other_neg):
+            log_string('----' + str(i) + '-----')
+            log_string('----' + 'NO OTHER NEG' + '-----')
+            continue
+
+        queries = []
+        positives = []
+        negatives = []
+        other_neg = []
+        for k in range(len(q_tuples)):
+            queries.append(q_tuples[k][0])
+            positives.append(q_tuples[k][1])
+            negatives.append(q_tuples[k][2])
+            other_neg.append(q_tuples[k][3])
+
+        queries = np.array(queries, dtype=np.float32)
+        queries = np.expand_dims(queries, axis=1)
+        other_neg = np.array(other_neg, dtype=np.float32)
+        other_neg = np.expand_dims(other_neg, axis=1)
+        positives = np.array(positives, dtype=np.float32)
+        negatives = np.array(negatives, dtype=np.float32)
+        log_string('----' + str(i) + '-----')
+        if (len(queries.shape) != 4):
+            log_string('----' + 'FAULTY QUERY' + '-----')
+            continue
+
+        model.train()
+        optimizer.zero_grad()
+
+        output_queries, output_positives, output_negatives, output_other_neg = run_model(
+            model, queries, positives, negatives, other_neg)
+        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, cfg.MARGIN_1, cfg.MARGIN_2, use_min=cfg.TRIPLET_USE_BEST_POSITIVES, lazy=cfg.LOSS_LAZY, ignore_zero_loss=cfg.LOSS_IGNORE_ZERO_BATCH)
+        loss.backward()
+        optimizer.step()
+
+        # log_string('batch loss: %f' % loss)
+        train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
+        TOTAL_ITERATIONS += para.args.batch_num_queries
+
+        # EVALLLL
+
+        if (epoch > 5 and i % (1400 // para.args.batch_num_queries) == 29):
+            TRAINING_LATENT_VECTORS = get_latent_vectors(
+                model, TRAINING_QUERIES)
+            print("Updated cached feature vectors")
+
+        if (i % (6000 // para.args.batch_num_queries) == 101):
+            if isinstance(model, nn.DataParallel):
+                model_to_save = model.module
+            else:
+                model_to_save = model
+            save_name = cfg.LOG_DIR + cfg.MODEL_FILENAME
+            torch.save({
+                'epoch': epoch,
+                'iter': TOTAL_ITERATIONS,
+                'state_dict': model_to_save.state_dict(),
+                'optimizer': optimizer.state_dict(),
+            },
+                save_name)
+            print("Model Saved As " + save_name)
+
 
 if __name__ == "__main__":
     if para.args.eval:
