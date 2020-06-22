@@ -9,7 +9,7 @@ from torch.backends import cudnn
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import util.initPara as para
-from util.initPara import print_gpu,log_string
+from util.initPara import print_gpu,log_string, BASE_LEARNING_RATE
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, MultiStepLR
 from util.data import TRAINING_QUERIES, device, update_vectors, Oxford_train_advance, Oxford_train_base
 import util.data as datapy
@@ -27,6 +27,10 @@ def inplace_relu(m):
     if classname.find('ReLU') != -1:
         m.inplace = True
 
+def get_learning_rate(epoch):
+    learning_rate = BASE_LEARNING_RATE*(0.922680834591**epoch)
+    learning_rate = max(learning_rate, 0.00001) # CLIP THE LEARNING RATE!
+    return learning_rate
 
 def train():
     global HARD_NEGATIVES, TOTAL_ITERATIONS
@@ -43,11 +47,11 @@ def train():
 
     if para.args.optimizer == 'momentum':
         log_string("use SGD")
-        optimizer = torch.optim.SGD(para.model.parameters(), para.args.lr, momentum=para.args.momentum)
+        optimizer = torch.optim.SGD(para.model.parameters(), BASE_LEARNING_RATE, momentum=para.args.momentum)
     elif para.args.optimizer == 'adam':
         log_string("use adam")
         # optimizer = torch.optim.Adam(para.model.parameters(), para.args.lr, weight_decay=1e-4)
-        optimizer = torch.optim.Adam(para.model.parameters(), para.args.lr)
+        optimizer = torch.optim.Adam(para.model.parameters(), BASE_LEARNING_RATE)
     else:
         log_string("optimizer None")
         optimizer = None
@@ -76,7 +80,7 @@ def train():
 
     # scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
     # recall 停止上升时
-    scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.2, patience=1, verbose=True)
+    # scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.2, patience=1, verbose=True)
 
     train_writer = SummaryWriter(os.path.join(para.args.log_dir, 'train_writer'))
     # print_gpu("1")
@@ -90,6 +94,9 @@ def train():
 
     for epoch in range(starting_epoch, para.args.max_epoch):
         log_string('**** EPOCH %03d ****' % (epoch))
+        lr_temp = get_learning_rate(epoch)
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = lr_temp
         train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall)
         # train_one_epoch_old(para.model,optimizer, train_writer, loss_function, epoch)
         log_string('EVALUATING...')

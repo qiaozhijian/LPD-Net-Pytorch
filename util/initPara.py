@@ -73,7 +73,7 @@ parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
                     help='feature net')
 parser.add_argument('--fstn', action='store_true', default=False,
                     help='feature transform')
-parser.add_argument('--lr', type=float, default=0.00001, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.00005, metavar='LR',
                         help='learning rate (min: 0.00001, 0.1 if using sgd)')
 parser.add_argument('--emb_dims', type=int, default=1024)
 parser.add_argument('--eval', action='store_true', default=False,
@@ -138,6 +138,7 @@ else:
     log_string("use cpu...")
     model = model.cpu()
 
+BASE_LEARNING_RATE = args.lr
 # log_string("model all:")
 # for name, param in model.named_parameters():
 #     log_string(name)
