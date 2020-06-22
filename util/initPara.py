@@ -55,7 +55,9 @@ parser.add_argument('--margin_2', type=float, default=0.2,
                     help='Margin for hinge loss [default: 0.2]')
 parser.add_argument('--loss_function', default='quadruplet', choices=[
     'triplet', 'quadruplet'], help='triplet or quadruplet [default: quadruplet]')
-parser.add_argument('--loss_lazy', action='store_false',
+parser.add_argument('--loss_lazy', action='store_false',default=True,
+                    help='If present, do not use lazy variant of loss')
+parser.add_argument('--load_fast', action='store_false',default=True,
                     help='If present, do not use lazy variant of loss')
 parser.add_argument('--loss_ignore_zero_batch', action='store_true',
                     help='If present, mean only batches with loss > 0.0')
@@ -71,7 +73,7 @@ parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
                     help='feature net')
 parser.add_argument('--fstn', action='store_true', default=False,
                     help='feature transform')
-parser.add_argument('--lr', type=float, default=0.00005, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.00001, metavar='LR',
                         help='learning rate (min: 0.00001, 0.1 if using sgd)')
 parser.add_argument('--emb_dims', type=int, default=1024)
 parser.add_argument('--eval', action='store_true', default=False,
@@ -114,29 +116,35 @@ cfg.RESULTS_FOLDER = args.log_dir + '/' + cfg.RESULTS_FOLDER
 if not os.path.exists(cfg.RESULTS_FOLDER):
     os.makedirs(cfg.RESULTS_FOLDER)
 
+LOG_FOUT = open(os.path.join(args.log_dir, 'log_train.txt'), 'w')
+LOG_FOUT.write(str(args) + '\n')
+LOG_FOUT.flush()
+def log_string(out_str):
+    LOG_FOUT.write(out_str + '\n')
+    LOG_FOUT.flush()
+    print(out_str)
+
 para = sum([np.prod(list(p.size())) for p in model.parameters()])
 # 下面的type_size是4，因为我们的参数是float32也就是4B，4个字节
-print('Model {} : params: {:4f}M'.format(model._get_name(), para * 4 / 1000 / 1000))
+log_string('Model {} : params: {:4f}M'.format(model._get_name(), para * 4 / 1000 / 1000))
 
 # 知乎说会节省显存，没啥用
 # model.apply(inplace_relu)
 
 if torch.cuda.is_available():
     model = model.cuda()
-    print("use cuda!")
+    log_string("use cuda!")
 else:
-    print("use cpu...")
+    log_string("use cpu...")
     model = model.cpu()
 
-# print("model all:")
+# log_string("model all:")
 # for name, param in model.named_parameters():
-#     print(name)
+#     log_string(name)
 
 # 一般情况下模型的requires_grad都为true
 # parameters = filter(lambda p: p.requires_grad, para.model.parameters())
 # parameters2 = filter(lambda p: True, para.model.parameters())
 # import operator
-# print(operator.eq(list(parameters),list(parameters2)))
-# print(set(list(parameters)).difference(set(list(parameters2))))
-
-
+# log_string(operator.eq(list(parameters),list(parameters2)))
+# log_string(set(list(parameters)).difference(set(list(parameters2))))

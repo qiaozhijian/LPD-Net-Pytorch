@@ -9,6 +9,7 @@ from loading_pointclouds import *
 from sklearn.neighbors import KDTree
 import torch
 import util.initPara as para
+from util.initPara import log_string
 from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -23,14 +24,14 @@ HARD_NEGATIVES = {}
 TRAINING_LATENT_VECTORS = []
 TRAINING_POINT_CLOUD = []
 
-load_fast=False
+load_fast=para.args.load_fast
 # 这里最好能跟数据生成同步
 if load_fast and not para.args.eval:
-    print("start load fast")
+    log_string("start load fast")
     DIR="./generating_queries/"
     if os.path.exists(DIR+"TRAINING_POINT_CLOUD.npy"):
         TRAINING_POINT_CLOUD = np.load(DIR+"TRAINING_POINT_CLOUD.npy")
-        print("load npy")
+        log_string("load npy")
     else:
         for i in tqdm(range(len(TRAINING_QUERIES))):
             filename = TRAINING_QUERIES[i]["query"]
@@ -38,9 +39,10 @@ if load_fast and not para.args.eval:
             TRAINING_POINT_CLOUD.append(pc)
         TRAINING_POINT_CLOUD = np.asarray(TRAINING_POINT_CLOUD).reshape(-1,4096,3)
         np.save(DIR+"TRAINING_POINT_CLOUD.npy", TRAINING_POINT_CLOUD)
-        print("save npy")
+        log_string("save npy")
 else:
     TRAINING_POINT_CLOUD = []
+    log_string("load_fast "+str(load_fast))
 
 def flat(l):
     for k in l:
@@ -74,7 +76,7 @@ def get_query_tuple_fast(item, dict_value, num_pos, num_neg, QUERY_DICT, hard_ne
     neg_indices = list(flat(neg_indices))
     negatives = TRAINING_POINT_CLOUD[neg_indices]
 
-    # print("load time: ",time()-start)
+    # log_string("load time: ",time()-start)
     # 是否需要额外的neg（Quadruplet loss需要）
     if other_neg is False:
         return [query, positives, negatives]
@@ -137,13 +139,13 @@ class Oxford_train_base(Dataset):
         self.train_len=len(TRAINING_QUERIES.keys())
         # self.train_file_items = np.random.permutation(np.arange(0, self.train_len))
         # self.train_file_items = np.arange(0, self.train_len)
-        print('Load Oxford Dataset')
+        log_string('Load Oxford Dataset')
         # self.data, self.label = []
         self.last = []
     def __getitem__(self, item):
         if (len(TRAINING_QUERIES[item]["positives"]) < self.positives_per_query):
             if self.last==[]:
-                print("wrong")
+                log_string("wrong")
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
         # no cached feature vectors
@@ -159,9 +161,9 @@ class Oxford_train_base(Dataset):
 
         # 这里默认使用了quadruplet loss，所以必须找到other_neg
         if (q_tuples[3].shape[0] != self.num_points):
-            print('----' + 'FAULTY other_neg' + '-----')
+            log_string('----' + 'FAULTY other_neg' + '-----')
             if self.last==[]:
-                print("wrong")
+                log_string("wrong")
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
 
@@ -171,9 +173,9 @@ class Oxford_train_base(Dataset):
         negatives = np.array(q_tuples[2], dtype=np.float32)
 
         if (len(queries.shape) != 3):
-            print('----' + 'FAULTY QUERY' + '-----')
+            log_string('----' + 'FAULTY QUERY' + '-----')
             if self.last==[]:
-                print("wrong")
+                log_string("wrong")
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
         self.last = [queries, positives, negatives, other_neg]
@@ -190,40 +192,40 @@ class Oxford_train_advance(Dataset):
         self.train_len = len(TRAINING_QUERIES.keys())
         # self.train_file_items = np.random.permutation(np.arange(0, self.train_len))
         # self.train_file_items = np.arange(0, self.train_len)
-        print('Load Oxford Dataset')
+        log_string('Load Oxford Dataset')
         # self.data, self.label = []
         self.sampled_neg = 4000
         self.hard_neg_num = args.hard_neg_per_query
         if self.hard_neg_num > args.negatives_per_query:
-            print("self.hard_neg_num >  args.negatives_per_query")
+            log_string("self.hard_neg_num >  args.negatives_per_query")
         self.last=[]
     def __getitem__(self, item):
         if (len(TRAINING_QUERIES[item]["positives"]) < self.positives_per_query):
-            # print("lack positive")
+            # log_string("lack positive")
             if self.last==[]:
-                print("wrong")
+                log_string("wrong")
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
         if (len(HARD_NEGATIVES.keys()) == 0):
             from time import time
             start = time()
             query = get_feature_representation(TRAINING_QUERIES[item]['query'], para.model)
-            # print("data: ",time()-start)
+            # log_string("data: ",time()-start)
             random.shuffle(TRAINING_QUERIES[item]['negatives'])
-            # print("data: ",time()-start)
+            # log_string("data: ",time()-start)
             negatives = TRAINING_QUERIES[item]['negatives'][0:self.sampled_neg]
-            # print("data: ",time()-start)
+            # log_string("data: ",time()-start)
             # 找到离当前query最近的neg KDtree比较耗时
             hard_negs = get_random_hard_negatives(query, negatives, self.hard_neg_num)
-            # print("data: ",time()-start)
-            # print(hard_negs)
+            # log_string("data: ",time()-start)
+            # log_string(hard_negs)
             if load_fast:
                 q_tuples=get_query_tuple_fast(item, TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
                                 TRAINING_QUERIES, hard_neg=hard_negs, other_neg=True)
             else:
                 q_tuples=get_query_tuple(TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
                                 TRAINING_QUERIES, hard_neg = hard_negs, other_neg=True)
-            # print("data: ",time()-start)
+            # log_string("data: ",time()-start)
         #     如果指定了一些HARD_NEGATIVES，實際沒有
         else:
             query = get_feature_representation(
@@ -235,7 +237,7 @@ class Oxford_train_advance(Dataset):
                 query, negatives, self.hard_neg_num)
             hard_negs = list(set().union(
                 HARD_NEGATIVES[item], hard_negs))
-            # print('hard', hard_negs)
+            # log_string('hard', hard_negs)
             if load_fast:
                 q_tuples=get_query_tuple_fast(item, TRAINING_QUERIES[item], self.positives_per_query, self.negatives_per_query,
                                 TRAINING_QUERIES, hard_neg=hard_negs, other_neg=True)
@@ -245,9 +247,9 @@ class Oxford_train_advance(Dataset):
 
         # 这里默认使用了quadruplet loss，所以必须找到other_neg
         if (q_tuples[3].shape[0] != self.num_points):
-            print('----' + 'FAULTY other_neg' + '-----')
+            log_string('----' + 'FAULTY other_neg' + '-----')
             if self.last==[]:
-                print("wrong")
+                log_string("wrong")
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
 
@@ -257,9 +259,9 @@ class Oxford_train_advance(Dataset):
         negatives = np.array(q_tuples[2], dtype=np.float32)
 
         if (len(queries.shape) != 3):
-            print('----' + 'FAULTY QUERY' + '-----')
+            log_string('----' + 'FAULTY QUERY' + '-----')
             if self.last==[]:
-                print("wrong")
+                log_string("wrong")
             else:
                 return self.last[0], self.last[1], self.last[2], self.last[3]
         self.last = [queries, positives, negatives, other_neg]
@@ -278,7 +280,7 @@ def update_vectors(args, model):
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
 
     batch_num = args.eval_batch_size * (1 + args.positives_per_query + args.negatives_per_query + 1)
-    # print("\n args: ",args.batch_num_queries,args.positives_per_query,args.negatives_per_query)
+    # log_string("\n args: ",args.batch_num_queries,args.positives_per_query,args.negatives_per_query)
     q_output = []
 
     model.eval()
@@ -335,5 +337,5 @@ def update_vectors(args, model):
     model.train()
 
     TRAINING_LATENT_VECTORS = q_output
-    # print("Updated cached feature vectors")
+    # log_string("Updated cached feature vectors")
     torch.cuda.empty_cache()

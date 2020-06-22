@@ -9,7 +9,7 @@ from torch.backends import cudnn
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import util.initPara as para
-from util.initPara import print_gpu
+from util.initPara import print_gpu,log_string
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, MultiStepLR
 from util.data import TRAINING_QUERIES, device, update_vectors, Oxford_train_advance, Oxford_train_base
 import util.data as datapy
@@ -20,18 +20,7 @@ cudnn.enabled = True
 division_epoch = 5
 
 # os.environ['CUDA_LAUNCH_BLOCKING']="1"
-
-LOG_FOUT = open(os.path.join(para.args.log_dir, 'log_train.txt'), 'w')
-LOG_FOUT.write(str(para.args) + '\n')
-LOG_FOUT.flush()
 TOTAL_ITERATIONS = 0
-
-
-def log_string(out_str):
-    LOG_FOUT.write(out_str + '\n')
-    LOG_FOUT.flush()
-    print(out_str)
-
 
 def inplace_relu(m):
     classname = m.__class__.__name__
@@ -94,10 +83,10 @@ def train():
     loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
     loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
 
-    # log_string('EVALUATING first...')
-    # eval_one_percent_recall = evaluate.evaluate_model(para.model)
-    # log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
-    # train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+    log_string('EVALUATING first...')
+    eval_one_percent_recall = evaluate.evaluate_model(para.model)
+    log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
+    train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
 
     for epoch in range(starting_epoch, para.args.max_epoch):
         log_string('**** EPOCH %03d ****' % (epoch))
