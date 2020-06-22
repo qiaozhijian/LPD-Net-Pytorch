@@ -23,7 +23,7 @@ HARD_NEGATIVES = {}
 TRAINING_LATENT_VECTORS = []
 TRAINING_POINT_CLOUD = []
 
-load_fast=True
+load_fast=False
 # 这里最好能跟数据生成同步
 if load_fast and not para.args.eval:
     print("start load fast")
@@ -285,13 +285,16 @@ def update_vectors(args, model):
 
     for q_index in tqdm(range(len(train_file_idxs) // batch_num)):
     # for q_index in tqdm(range(batch_num*2 // batch_num)):
-    #     file_indices = train_file_idxs[q_index * batch_num:(q_index + 1) * (batch_num)]
-        # file_names = []
-        # for index in file_indices:
-        #     file_names.append(TRAINING_QUERIES[index]["query"])
-        # queries = load_pc_files(file_names)
-        file_indices = np.arange(q_index * batch_num, (q_index + 1) * (batch_num))
-        queries = TRAINING_POINT_CLOUD[file_indices]
+        if load_fast:
+            file_indices = np.arange(q_index * batch_num, (q_index + 1) * (batch_num))
+            queries = TRAINING_POINT_CLOUD[file_indices]
+        else:
+            file_indices = train_file_idxs[q_index * batch_num:(q_index + 1) * (batch_num)]
+            file_names = []
+            for index in file_indices:
+                file_names.append(TRAINING_QUERIES[index]["query"])
+            queries = load_pc_files(file_names)
+
         feed_tensor = torch.from_numpy(queries).float()
         feed_tensor = feed_tensor.unsqueeze(1)
         feed_tensor = feed_tensor.to(device)
@@ -309,10 +312,12 @@ def update_vectors(args, model):
 
     # handle edge case
     for q_index in tqdm(range((len(train_file_idxs) // batch_num * batch_num), len(TRAINING_QUERIES.keys()))):
-        # index = train_file_idxs[q_index]
-        # queries = load_pc_files([TRAINING_QUERIES[index]["query"]])
-        queries = TRAINING_POINT_CLOUD[train_file_idxs[q_index]]
-        queries = np.expand_dims(np.expand_dims(queries, axis=0), axis=0)
+        if load_fast:
+            queries = TRAINING_POINT_CLOUD[train_file_idxs[q_index]]
+            queries = np.expand_dims(np.expand_dims(queries, axis=0), axis=0)
+        else:
+            index = train_file_idxs[q_index]
+            queries = load_pc_files([TRAINING_QUERIES[index]["query"]])
 
         with torch.no_grad():
             queries_tensor = torch.from_numpy(queries).float()

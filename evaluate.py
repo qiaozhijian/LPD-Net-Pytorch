@@ -98,7 +98,7 @@ def evaluate_model(model, save_flag=True):
 
 
 def get_latent_vectors(model, dict_to_process):
-
+    torch.cuda.empty_cache()
     model.eval()
     train_file_idxs = np.arange(0, len(dict_to_process.keys()))
 
@@ -124,7 +124,7 @@ def get_latent_vectors(model, dict_to_process):
 
         out = out.detach().cpu().numpy()
         out = np.squeeze(out)
-
+        del feed_tensor
         #out = np.vstack((o1, o2, o3, o4))
         q_output.append(out)
 
@@ -145,9 +145,10 @@ def get_latent_vectors(model, dict_to_process):
             feed_tensor = torch.from_numpy(queries).float()
             feed_tensor = feed_tensor.unsqueeze(1)
             feed_tensor = feed_tensor.to(device)
-            o1 = model(feed_tensor)
+            output = model(feed_tensor)
 
-        output = o1.detach().cpu().numpy()
+        del feed_tensor
+        output = output.detach().cpu().numpy()
         output = np.squeeze(output)
         if (q_output.shape[0] != 0):
             q_output = np.vstack((q_output, output))
@@ -155,6 +156,7 @@ def get_latent_vectors(model, dict_to_process):
             q_output = output
 
     model.train()
+    torch.cuda.empty_cache()
     # print(q_output.shape)
     return q_output
 

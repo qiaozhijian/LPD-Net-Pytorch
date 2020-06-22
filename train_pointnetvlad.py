@@ -12,6 +12,7 @@ import util.initPara as para
 from util.initPara import print_gpu
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, MultiStepLR
 from util.data import TRAINING_QUERIES, device, update_vectors, Oxford_train_advance, Oxford_train_base
+import util.data as datapy
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
@@ -56,7 +57,8 @@ def train():
         optimizer = torch.optim.SGD(para.model.parameters(), para.args.lr, momentum=para.args.momentum)
     elif para.args.optimizer == 'adam':
         log_string("use adam")
-        optimizer = torch.optim.Adam(para.model.parameters(), para.args.lr, weight_decay=1e-4)
+        # optimizer = torch.optim.Adam(para.model.parameters(), para.args.lr, weight_decay=1e-4)
+        optimizer = torch.optim.Adam(para.model.parameters(), para.args.lr)
     else:
         log_string("optimizer None")
         optimizer = None
@@ -89,18 +91,18 @@ def train():
 
     train_writer = SummaryWriter(os.path.join(para.args.log_dir, 'train_writer'))
     # print_gpu("1")
-    loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
-    loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=True, drop_last=True)
+    loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
+    loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
 
-    log_string('EVALUATING first...')
-    eval_one_percent_recall = evaluate.evaluate_model(para.model)
-    log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
-    train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+    # log_string('EVALUATING first...')
+    # eval_one_percent_recall = evaluate.evaluate_model(para.model)
+    # log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
+    # train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
 
     for epoch in range(starting_epoch, para.args.max_epoch):
         log_string('**** EPOCH %03d ****' % (epoch))
-        # train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall)
-        train_one_epoch_old(para.model,optimizer, train_writer, loss_function, epoch)
+        train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall)
+        # train_one_epoch_old(para.model,optimizer, train_writer, loss_function, epoch)
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
         eval_one_percent_recall = evaluate.evaluate_model(para.model)
@@ -121,7 +123,7 @@ def train():
         log_string("Model Saved As " + save_name)
 
         # scheduler.step()
-        scheduler.step(eval_one_percent_recall)
+        # scheduler.step(eval_one_percent_recall)
 
         train_writer.add_scalar("Val Recall", eval_one_percent_recall, epoch)
 
@@ -136,7 +138,7 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
                 para.model, queries, positives, negatives, other_neg)
             loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, para.args.margin_1,
-                                 para.args.margin_2, use_min=para.args.triplet_use_best_positives, lazy=para.args.loss_not_lazy,
+                                 para.args.margin_2, use_min=para.args.triplet_use_best_positives, lazy=para.args.loss_lazy,
                                  ignore_zero_loss=para.args.loss_ignore_zero_batch)
             loss.backward()
             optimizer.step()
@@ -199,8 +201,7 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
     return o1, o2, o3, o4
 
 def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
-    global HARD_NEGATIVES
-    global TRAINING_LATENT_VECTORS, TOTAL_ITERATIONS
+    global TOTAL_ITERATIONS
     from util.data import get_feature_representation,get_query_tuple,get_random_hard_negatives
     from evaluate import get_latent_vectors
     is_training = True
@@ -227,14 +228,14 @@ def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
                 break
 
             # no cached feature vectors
-            if (len(TRAINING_LATENT_VECTORS) == 0):
+            if (len(datapy.TRAINING_LATENT_VECTORS) == 0):
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], para.args.positives_per_query, para.args.negatives_per_query,
                                     TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
 
-            elif (len(HARD_NEGATIVES.keys()) == 0):
+            elif (len(datapy.HARD_NEGATIVES.keys()) == 0):
                 query = get_feature_representation(
                     TRAINING_QUERIES[batch_keys[j]]['query'], model)
                 random.shuffle(TRAINING_QUERIES[batch_keys[j]]['negatives'])
@@ -242,7 +243,7 @@ def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
                                              ]['negatives'][0:sampled_neg]
                 hard_negs = get_random_hard_negatives(
                     query, negatives, num_to_take)
-                print(hard_negs)
+                # print(hard_negs)
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], para.args.positives_per_query, para.args.negatives_per_query,
                                     TRAINING_QUERIES, hard_negs, other_neg=True))
@@ -257,8 +258,8 @@ def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
                 hard_negs = get_random_hard_negatives(
                     query, negatives, num_to_take)
                 hard_negs = list(set().union(
-                    HARD_NEGATIVES[batch_keys[j]], hard_negs))
-                print('hard', hard_negs)
+                    datapy.HARD_NEGATIVES[batch_keys[j]], hard_negs))
+                # print('hard', hard_negs)
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], para.args.positives_per_query, para.args.negatives_per_query,
                                     TRAINING_QUERIES, hard_negs, other_neg=True))
@@ -270,13 +271,13 @@ def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
                 break
 
         if(faulty_tuple):
-            log_string('----' + str(i) + '-----')
-            log_string('----' + 'FAULTY TUPLE' + '-----')
+            # log_string('----' + str(i) + '-----')
+            # log_string('----' + 'FAULTY TUPLE' + '-----')
             continue
 
         if(no_other_neg):
-            log_string('----' + str(i) + '-----')
-            log_string('----' + 'NO OTHER NEG' + '-----')
+            # log_string('----' + str(i) + '-----')
+            # log_string('----' + 'NO OTHER NEG' + '-----')
             continue
 
         queries = []
@@ -295,14 +296,18 @@ def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
         other_neg = np.expand_dims(other_neg, axis=1)
         positives = np.array(positives, dtype=np.float32)
         negatives = np.array(negatives, dtype=np.float32)
-        log_string('----' + str(i) + '-----')
         if (len(queries.shape) != 4):
+
             log_string('----' + 'FAULTY QUERY' + '-----')
+            log_string(queries.shape)
             continue
 
         model.train()
         optimizer.zero_grad()
-
+        queries = torch.from_numpy(queries).float()
+        positives = torch.from_numpy(positives).float()
+        negatives = torch.from_numpy(negatives).float()
+        other_neg = torch.from_numpy(other_neg).float()
         output_queries, output_positives, output_negatives, output_other_neg = run_model(
             model, queries, positives, negatives, other_neg)
         loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, cfg.MARGIN_1, cfg.MARGIN_2, use_min=False, lazy=True, ignore_zero_loss=False)
@@ -316,7 +321,7 @@ def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
         # EVALLLL
 
         if (epoch > 5 and i % (1400 // para.args.batch_num_queries) == 29):
-            TRAINING_LATENT_VECTORS = get_latent_vectors(
+            datapy.TRAINING_LATENT_VECTORS = get_latent_vectors(
                 model, TRAINING_QUERIES)
             print("Updated cached feature vectors")
 
