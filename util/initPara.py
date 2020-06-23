@@ -57,12 +57,12 @@ parser.add_argument('--loss_function', default='quadruplet', choices=[
     'triplet', 'quadruplet'], help='triplet or quadruplet [default: quadruplet]')
 parser.add_argument('--loss_lazy', action='store_false',default=True,
                     help='If present, do not use lazy variant of loss')
+parser.add_argument('--triplet_use_best_positives', action='store_false',default=True,
+                    help='If present, use best positives, otherwise use hardest positives')
+parser.add_argument('--loss_ignore_zero_batch', action='store_true',default=False,
+                    help='If present, mean only batches with loss > 0.0')
 parser.add_argument('--load_fast', action='store_false',default=True,
                     help='If present, do not use lazy variant of loss')
-parser.add_argument('--loss_ignore_zero_batch', action='store_true',
-                    help='If present, mean only batches with loss > 0.0')
-parser.add_argument('--triplet_use_best_positives', action='store_true',
-                    help='If present, use best positives, otherwise use hardest positives')
 parser.add_argument('--resume', action='store_true',
                     help='If present, restore checkpoint and resume training')
 parser.add_argument('--dataset_folder', default='./benchmark_datasets/',

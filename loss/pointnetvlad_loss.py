@@ -50,7 +50,7 @@ def quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg, m1, m2, use_min=False,
     min_pos, max_pos = best_pos_distance(q_vec, pos_vecs)
 
     # PointNetVLAD official code use min_pos, but i think max_pos should be used
-    if use_min:
+    if use_min:#获得正样本最小的距离还是最大
         positive = min_pos
     else:
         positive = max_pos
@@ -63,11 +63,14 @@ def quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg, m1, m2, use_min=False,
 
     loss = m1 + positive - ((neg_vecs - query_copies) ** 2).sum(2)
     loss = loss.clamp(min=0.0)
+    # 是否只看max
     if lazy:
         triplet_loss = loss.max(1)[0]
     else:
         triplet_loss = loss.sum(1)
+    # 是否忽略为0的loss
     if ignore_zero_loss:
+        # gt 若大于1e-16则为1
         hard_triplets = torch.gt(triplet_loss, 1e-16).float()
         num_hard_triplets = torch.sum(hard_triplets)
         triplet_loss = triplet_loss.sum() / (num_hard_triplets + 1e-16)
@@ -81,8 +84,9 @@ def quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg, m1, m2, use_min=False,
         second_loss = second_loss.max(1)[0]
     else:
         second_loss = second_loss.sum(1)
-
+    # 是否忽略为0的loss
     if ignore_zero_loss:
+        # gt 若大于1e-16则为1
         hard_second = torch.gt(second_loss, 1e-16).float()
         num_hard_second = torch.sum(hard_second)
         second_loss = second_loss.sum() / (num_hard_second + 1e-16)
