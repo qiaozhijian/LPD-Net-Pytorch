@@ -250,11 +250,11 @@ class PointNetVlad(nn.Module):
                                      is_training=True)
 
     def forward(self, x):
-        print("input x: ",x.shape)
+        # print("input x: ",x.shape)
         x = self.point_net(x)
-        print("point_net x: ", x.shape)
+        # print("point_net x: ", x.shape)
         x = self.net_vlad(x)
-        print("net_vlad x: ", x.shape)
+        # print("net_vlad x: ", x.shape)
         return x
 
 

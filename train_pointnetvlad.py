@@ -16,6 +16,7 @@ from loading_pointclouds import *
 from tensorboardX import SummaryWriter
 from torch.autograd import Variable
 from torch.backends import cudnn
+from tqdm import tqdm
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
@@ -200,9 +201,12 @@ def train():
     LOG_FOUT.write("\n")
     LOG_FOUT.flush()
 
+    log_string('EVALUATING...')
+    cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
+    eval_recall = evaluate.evaluate_model(model)
+    log_string('EVAL RECALL: %s' % str(eval_recall))
+
     for epoch in range(starting_epoch, cfg.MAX_EPOCH):
-        print(epoch)
-        print()
         log_string('**** EPOCH %03d ****' % (epoch))
         sys.stdout.flush()
 
@@ -230,7 +234,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
     np.random.shuffle(train_file_idxs)
 
-    for i in range(len(train_file_idxs)//cfg.BATCH_NUM_QUERIES):
+    for i in tqdm(range(len(train_file_idxs)//cfg.BATCH_NUM_QUERIES)):
         # for i in range (5):
         batch_keys = train_file_idxs[i *
                                      cfg.BATCH_NUM_QUERIES:(i+1)*cfg.BATCH_NUM_QUERIES]
@@ -312,7 +316,6 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
         other_neg = np.expand_dims(other_neg, axis=1)
         positives = np.array(positives, dtype=np.float32)
         negatives = np.array(negatives, dtype=np.float32)
-        log_string('----' + str(i) + '-----')
         if (len(queries.shape) != 4):
             log_string('----' + 'FAULTY QUERY' + '-----')
             continue
@@ -326,7 +329,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
         loss.backward()
         optimizer.step()
 
-        log_string('batch loss: %f' % loss)
+        # log_string('batch loss: %f' % loss)
         train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
         TOTAL_ITERATIONS += cfg.BATCH_NUM_QUERIES
 

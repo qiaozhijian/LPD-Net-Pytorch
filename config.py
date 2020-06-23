@@ -39,9 +39,9 @@ TRIPLET_USE_BEST_POSITIVES = False
 LOSS_IGNORE_ZERO_BATCH = False
 
 # EVAL6
-EVAL_BATCH_SIZE = 2
+EVAL_BATCH_SIZE = 16
 EVAL_POSITIVES_PER_QUERY = 4
-EVAL_NEGATIVES_PER_QUERY = 12
+EVAL_NEGATIVES_PER_QUERY = 18
 
 EVAL_DATABASE_FILE = 'generating_queries/oxford_evaluation_database.pickle'
 EVAL_QUERY_FILE = 'generating_queries/oxford_evaluation_query.pickle'
