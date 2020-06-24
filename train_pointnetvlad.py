@@ -359,7 +359,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                     query, negatives, num_to_take)
                 hard_negs = list(set().union(
                     HARD_NEGATIVES[batch_keys[j]], hard_negs))
-                print('hard', hard_negs)
+                print('third hn', hard_negs)
                 # q_tuples.append(
                 #     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                 #                     TRAINING_QUERIES, hard_negs, other_neg=True))
