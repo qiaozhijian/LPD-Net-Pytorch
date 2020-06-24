@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.neighbors import KDTree, NearestNeighbors
 import config as cfg
 import evaluate
+from time import time
 import loss.pointnetvlad_loss as PNV_loss
 import models.PointNetVlad as PNV
 import torch
@@ -116,6 +117,84 @@ TRAINING_LATENT_VECTORS = []
 TOTAL_ITERATIONS = 0
 
 
+def log_string(out_str):
+    LOG_FOUT.write(out_str + '\n')
+    LOG_FOUT.flush()
+    print(out_str)
+
+load_fast=True
+TRAINING_POINT_CLOUD = []
+# 这里最好能跟数据生成同步
+if load_fast :
+    log_string("start load fast")
+    DIR="./generating_queries/"
+    if os.path.exists(DIR+"TRAINING_POINT_CLOUD.npy"):
+        TRAINING_POINT_CLOUD = np.load(DIR+"TRAINING_POINT_CLOUD.npy")
+        log_string("load npy")
+    else:
+        for i in tqdm(range(len(TRAINING_QUERIES))):
+            filename = TRAINING_QUERIES[i]["query"]
+            pc = load_pc_file(filename)
+            TRAINING_POINT_CLOUD.append(pc)
+        TRAINING_POINT_CLOUD = np.asarray(TRAINING_POINT_CLOUD).reshape(-1,4096,3)
+        np.save(DIR+"TRAINING_POINT_CLOUD.npy", TRAINING_POINT_CLOUD)
+        log_string("save npy")
+else:
+    TRAINING_POINT_CLOUD = []
+    log_string("load_fast "+str(load_fast))
+
+def flat(l):
+    for k in l:
+        if not isinstance(k, (list, tuple)):
+            yield k
+        else:
+            yield from flat(k)
+def get_query_tuple_fast(item, dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other_neg=False):
+    # get query tuple for dictionary entry
+    # return list [query,positives,negatives]
+    start = time()
+    query = TRAINING_POINT_CLOUD[item] # 就一个点云
+    random.shuffle(dict_value["positives"])
+    # 不必考虑正样本是否充足，因为之前判断过
+    positives = TRAINING_POINT_CLOUD[(dict_value["positives"][:num_pos])]
+
+    neg_indices = []
+    if(len(hard_neg) == 0):
+        random.shuffle(dict_value["negatives"])
+        neg_indices=dict_value["negatives"][:num_neg]
+    else:
+        neg_indices.append(hard_neg)
+        j = 0
+        # 如果hard不够，再进行补充
+        neg_indices = list(flat(neg_indices))
+        while(len(neg_indices) < num_neg):
+            if not dict_value["negatives"][j] in hard_neg:
+                neg_indices.append(dict_value["negatives"][j])
+            j += 1
+    neg_indices = list(flat(neg_indices))
+    negatives = TRAINING_POINT_CLOUD[neg_indices]
+
+    # log_string("load time: ",time()-start)
+    # 是否需要额外的neg（Quadruplet loss需要）
+    if other_neg is False:
+        return [query, positives, negatives]
+    else:
+        # get neighbors of negatives and query
+        neighbors = []
+        for pos in dict_value["positives"]:
+            neighbors.append(pos)
+        for neg in neg_indices:
+            for pos in QUERY_DICT[neg]["positives"]:
+                neighbors.append(pos)
+        # 减去与neighbors公共有的部分，剩下既不进也不远的那些部分
+        neighbors = list(flat(neighbors))
+        possible_negs = list(set(QUERY_DICT.keys())-set(neighbors))
+        random.shuffle(possible_negs)
+        if(len(possible_negs) == 0):
+            return [query, positives, negatives, np.array([])]
+        neg2 = TRAINING_POINT_CLOUD[possible_negs[0]] # 就一个
+
+        return [query, positives, negatives, neg2]
 
 def get_bn_decay(batch):
     bn_momentum = cfg.BN_INIT_DECAY * \
@@ -123,11 +202,6 @@ def get_bn_decay(batch):
          (batch * cfg.BATCH_NUM_QUERIES // BN_DECAY_DECAY_STEP))
     return min(cfg.BN_DECAY_CLIP, 1 - bn_momentum)
 
-
-def log_string(out_str):
-    LOG_FOUT.write(out_str + '\n')
-    LOG_FOUT.flush()
-    print(out_str)
 
 # learning rate halfed every 5 epoch
 
@@ -202,7 +276,7 @@ def train():
     LOG_FOUT.flush()
 
     log_string('EVALUATING...')
-    cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
+    cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(-1) + '.txt'
     eval_recall = evaluate.evaluate_model(model)
     log_string('EVAL RECALL: %s' % str(eval_recall))
 
@@ -249,8 +323,11 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
 
             # no cached feature vectors
             if (len(TRAINING_LATENT_VECTORS) == 0):
+                # q_tuples.append(
+                #     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                #                     TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                    get_query_tuple_fast(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                                     TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
@@ -263,9 +340,12 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                                              ]['negatives'][0:sampled_neg]
                 hard_negs = get_random_hard_negatives(
                     query, negatives, num_to_take)
-                print(hard_negs)
+                # print(hard_negs)
+                # q_tuples.append(
+                #     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                #                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                    get_query_tuple_fast(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
@@ -280,8 +360,11 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                 hard_negs = list(set().union(
                     HARD_NEGATIVES[batch_keys[j]], hard_negs))
                 print('hard', hard_negs)
+                # q_tuples.append(
+                #     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                #                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                    get_query_tuple_fast(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
@@ -291,8 +374,8 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                 break
 
         if(faulty_tuple):
-            log_string('----' + str(i) + '-----')
-            log_string('----' + 'FAULTY TUPLE' + '-----')
+            # log_string('----' + str(i) + '-----')
+            # log_string('----' + 'FAULTY TUPLE' + '-----')
             continue
 
         if(no_other_neg):
@@ -339,6 +422,10 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
             TRAINING_LATENT_VECTORS = get_latent_vectors(
                 model, TRAINING_QUERIES)
             print("Updated cached feature vectors")
+        if (TOTAL_ITERATIONS % (3600 // cfg.BATCH_NUM_QUERIES * cfg.BATCH_NUM_QUERIES) == 0):
+            cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(-1) + '.txt'
+            eval_recall = evaluate.evaluate_model(model)
+            log_string('EVAL RECALL: %s' % str(eval_recall))
 
         if (i % (6000 // cfg.BATCH_NUM_QUERIES) == 101):
             if isinstance(model, nn.DataParallel):
@@ -450,7 +537,7 @@ def get_latent_vectors(model, dict_to_process):
             q_output = output
 
     model.train()
-    print(q_output.shape)
+    # print(q_output.shape)
     return q_output
 
 

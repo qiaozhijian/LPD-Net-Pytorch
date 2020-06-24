@@ -226,7 +226,7 @@ class PointNetfeat(nn.Module):
         x = F.relu(self.bn4(self.conv4(x)))
         # print("x: ", x.shape) [B,128,num,1]
         x = self.bn5(self.conv5(x))
-        print("x: ", x.shape)
+        # print("x: ", x.shape)
         if not self.max_pool:
             return x
         else:

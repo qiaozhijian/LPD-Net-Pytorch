@@ -44,9 +44,9 @@ def evaluate():
     print(evaluate_model(model))
 
 
+DATABASE_SETS = get_sets_dict(cfg.EVAL_DATABASE_FILE)
+QUERY_SETS = get_sets_dict(cfg.EVAL_QUERY_FILE)
 def evaluate_model(model):
-    DATABASE_SETS = get_sets_dict(cfg.EVAL_DATABASE_FILE)
-    QUERY_SETS = get_sets_dict(cfg.EVAL_QUERY_FILE)
 
     if not os.path.exists(cfg.RESULTS_FOLDER):
         os.mkdir(cfg.RESULTS_FOLDER)
@@ -104,6 +104,7 @@ def evaluate_model(model):
 def get_latent_vectors(model, dict_to_process):
 
     model.eval()
+    torch.cuda.empty_cache()
     is_training = False
     train_file_idxs = np.arange(0, len(dict_to_process.keys()))
 
@@ -155,7 +156,7 @@ def get_latent_vectors(model, dict_to_process):
             q_output = np.vstack((q_output, output))
         else:
             q_output = output
-
+    torch.cuda.empty_cache()
     model.train()
     # print(q_output.shape)
     return q_output
