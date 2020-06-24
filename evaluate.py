@@ -73,14 +73,17 @@ def evaluate_model(model, save_flag=True):
                 similarity.append(x)
 
     ave_recall = recall / count
-    # print(ave_recall)
+    if save_flag:
+        print("average_similarity_score",ave_recall)
 
     # print(similarity)
     average_similarity_score = np.mean(similarity)
-    # print(average_similarity)
-
+    if save_flag:
+        print("average_similarity_score",average_similarity_score)
+    #
     ave_one_percent_recall = np.mean(one_percent_recall)
-    # print(ave_one_percent_recall)
+    if save_flag:
+        print("ave_one_percent_recall",ave_one_percent_recall)
 
     if save_flag:
         cfg.OUTPUT_FILE = os.path.join(cfg.RESULTS_FOLDER, "result.txt")
