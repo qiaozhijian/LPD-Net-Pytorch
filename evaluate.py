@@ -28,12 +28,12 @@ cudnn.enabled = True
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def evaluate():
+def evaluate(FLAGS):
     model = PNV.PointNetVlad(global_feat=True, feature_transform=True, max_pool=False,
                                       output_dim=cfg.FEATURE_OUTPUT_DIM, num_points=cfg.NUM_POINTS)
     model = model.to(device)
 
-    resume_filename = cfg.LOG_DIR + "checkpoint.pth.tar"
+    resume_filename = FLAGS.pretrained_path
     print("Resuming From ", resume_filename)
     checkpoint = torch.load(resume_filename)
     saved_state_dict = checkpoint['state_dict']
@@ -223,6 +223,8 @@ if __name__ == "__main__":
                         help='results dir [default: results]')
     parser.add_argument('--dataset_folder', default='../../dataset/',
                         help='PointNetVlad Dataset Folder')
+    parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
+                    help='Pretrained model path')
     FLAGS = parser.parse_args()
 
     #BATCH_SIZE = FLAGS.batch_size
@@ -245,4 +247,4 @@ if __name__ == "__main__":
 
     cfg.DATASET_FOLDER = FLAGS.dataset_folder
 
-    evaluate()
+    evaluate(FLAGS)
