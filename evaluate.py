@@ -20,7 +20,7 @@ from loading_pointclouds import *
 import models.PointNetVlad as PNV
 from tensorboardX import SummaryWriter
 import loss.pointnetvlad_loss
-
+from tqdm import tqdm
 import config as cfg
 
 cudnn.enabled = True
@@ -59,13 +59,13 @@ def evaluate_model(model):
     DATABASE_VECTORS = []
     QUERY_VECTORS = []
 
-    for i in range(len(DATABASE_SETS)):
+    for i in (range(len(DATABASE_SETS))):
         DATABASE_VECTORS.append(get_latent_vectors(model, DATABASE_SETS[i]))
 
-    for j in range(len(QUERY_SETS)):
+    for j in (range(len(QUERY_SETS))):
         QUERY_VECTORS.append(get_latent_vectors(model, QUERY_SETS[j]))
 
-    for m in range(len(QUERY_SETS)):
+    for m in (range(len(QUERY_SETS))):
         for n in range(len(QUERY_SETS)):
             if (m == n):
                 continue
@@ -77,7 +77,6 @@ def evaluate_model(model):
             for x in pair_similarity:
                 similarity.append(x)
 
-    print()
     ave_recall = recall / count
     # print(ave_recall)
 
@@ -221,7 +220,7 @@ if __name__ == "__main__":
                         help='Decay rate for lr decay [default: 0.8]')
     parser.add_argument('--results_dir', default='results/',
                         help='results dir [default: results]')
-    parser.add_argument('--dataset_folder', default='../../dataset/',
+    parser.add_argument('--dataset_folder', default='./benchmark_datasets/',
                         help='PointNetVlad Dataset Folder')
     parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
                     help='Pretrained model path')

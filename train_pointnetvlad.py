@@ -246,25 +246,21 @@ def train():
     else:
         optimizer = None
         exit(0)
-
-    if FLAGS.resume:
-        resume_filename = cfg.LOG_DIR + "checkpoint.pth.tar"
-        print("Resuming From ", resume_filename)
-        checkpoint = torch.load(resume_filename)
-        saved_state_dict = checkpoint['state_dict']
-        starting_epoch = checkpoint['epoch']
-        TOTAL_ITERATIONS = starting_epoch * len(TRAINING_QUERIES)
-
-        model.load_state_dict(saved_state_dict)
-        optimizer.load_state_dict(checkpoint['optimizer'])
+    
+    
+    if not os.path.exists(FLAGS.pretrained_path):
+        log_string("can't find pretrained model" + FLAGS.pretrained_path)
     else:
-        starting_epoch = 0
-
-    if not os.path.exists(cfg.pretrained_path):
-        print("can't find pretrained model")
-    else:
-        print("load pretrained model")
-        model.load_state_dict(torch.load(cfg.pretrained_path), strict=False)
+        if FLAGS.pretrained_path[-1]=="7":
+            log_string("load pretrained model" + FLAGS.pretrained_path)
+            model.load_state_dict(torch.load(FLAGS.pretrained_path), strict=True)
+        else:
+            checkpoint = torch.load(FLAGS.pretrained_path)
+            saved_state_dict = checkpoint['state_dict']
+            starting_epoch = checkpoint['epoch'] + 1
+            model.load_state_dict(saved_state_dict, strict=True)
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            log_string("load checkpoint" + FLAGS.pretrained_path+ " starting_epoch: "+ str(starting_epoch))
 
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
@@ -327,7 +323,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                 #     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                 #                     TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 q_tuples.append(
-                    get_query_tuple_fast(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                    get_query_tuple_fast(batch_keys[j], TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                                     TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
@@ -345,7 +341,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                 #     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                 #                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 q_tuples.append(
-                    get_query_tuple_fast(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                    get_query_tuple_fast(batch_keys[j], TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
@@ -364,7 +360,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                 #     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                 #                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 q_tuples.append(
-                    get_query_tuple_fast(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
+                    get_query_tuple_fast(batch_keys[j], TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                                     TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
