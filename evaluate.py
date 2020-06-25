@@ -221,7 +221,7 @@ if __name__ == "__main__":
                         help='Decay rate for lr decay [default: 0.8]')
     parser.add_argument('--results_dir', default='results/',
                         help='results dir [default: results]')
-    parser.add_argument('--dataset_folder', default='../../dataset/',
+    parser.add_argument('--dataset_folder', default='./benchmark_datasets',
                         help='PointNetVlad Dataset Folder')
     parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
                     help='Pretrained model path')
