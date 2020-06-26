@@ -122,7 +122,7 @@ def get_latent_vectors(model, dict_to_process):
             feed_tensor = torch.from_numpy(queries).float()
             feed_tensor = feed_tensor.unsqueeze(1)
             feed_tensor = feed_tensor.to(device)
-            print(feed_tensor.mean(dim=[0, 1, 2]))
+            # print(feed_tensor.mean(dim=[0, 1, 2]))
             out = model(feed_tensor)
         # print("forward time: ", time() - start)
 
@@ -162,7 +162,7 @@ def get_latent_vectors(model, dict_to_process):
     torch.cuda.empty_cache()
     model.train()
     # print(q_output.shape)
-    print(q_output.shape, np.asarray(q_output).mean(),np.asarray(q_output).reshape(-1,256).min(),np.asarray(q_output).reshape(-1,256).max())
+    # print(q_output.shape, np.asarray(q_output).mean(),np.asarray(q_output).reshape(-1,256).min(),np.asarray(q_output).reshape(-1,256).max())
     return q_output
 
 
