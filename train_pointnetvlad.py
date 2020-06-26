@@ -87,10 +87,10 @@ def train():
     loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
     loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
 
-    # log_string('EVALUATING first...')
-    # eval_one_percent_recall = evaluate.evaluate_model(para.model)
-    # log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
-    # train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+    log_string('EVALUATING first...')
+    eval_one_percent_recall = evaluate.evaluate_model(para.model)
+    log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
+    train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
 
     for epoch in range(starting_epoch, para.args.max_epoch):
         log_string('**** EPOCH %03d ****' % (epoch))
