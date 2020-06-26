@@ -87,10 +87,10 @@ def train():
     loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
     loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
 
-    log_string('EVALUATING first...')
-    eval_one_percent_recall = evaluate.evaluate_model(para.model)
-    log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
-    train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+    # log_string('EVALUATING first...')
+    # eval_one_percent_recall = evaluate.evaluate_model(para.model)
+    # log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
+    # train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
 
     for epoch in range(starting_epoch, para.args.max_epoch):
         log_string('**** EPOCH %03d ****' % (epoch))
@@ -126,11 +126,11 @@ def train():
 
 def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall):
     global TOTAL_ITERATIONS
-    para.model.train()
-    optimizer.zero_grad()
 
     if epoch <= division_epoch:
         for queries, positives, negatives, other_neg in tqdm(loader_base):
+            para.model.train()
+            optimizer.zero_grad()
             output_queries, output_positives, output_negatives, output_other_neg = run_model(
                 para.model, queries, positives, negatives, other_neg)
             loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, para.args.margin_1,
