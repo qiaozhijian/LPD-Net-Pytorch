@@ -360,7 +360,15 @@ if __name__ == "__main__":
         if torch.cuda.device_count() > 1:
             para.model = nn.DataParallel(para.model)
             log_string("Let's use "+ str(torch.cuda.device_count())+ " GPUs!")
+
+        # log_string("model all:")
+        # for name, param in para.model.named_parameters():
+        #     if name=='module.point_net.stn.fc2.bias':
+        #         print(param)
+
         ave_one_percent_recall = evaluate.evaluate_model(para.model,save_flag=True)
+
+        # ave_one_percent_recall = evaluate.evaluate_model2(para.model)
         print("ave_one_percent_recall: ",ave_one_percent_recall)
     else:
         train()
