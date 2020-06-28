@@ -34,7 +34,7 @@ parser.add_argument('--negatives_per_query', type=int, default=18,
                     help='Number of definite negatives in each training tuple [default: 18]')
 parser.add_argument('--max_epoch', type=int, default=20,
                     help='Epoch to run [default: 20]')
-parser.add_argument('--batch_num_queries', type=int, default=6,
+parser.add_argument('--batch_num_queries', type=int, default=2,
                     help='Batch Size during training [default: 2]')
 parser.add_argument('--learning_rate', type=float, default=0.000005,
                     help='Initial learning rate [default: 0.000005]')
@@ -246,8 +246,8 @@ def train():
     else:
         optimizer = None
         exit(0)
-    
-    
+
+    starting_epoch = 0
     if not os.path.exists(FLAGS.pretrained_path):
         log_string("can't find pretrained model" + FLAGS.pretrained_path)
     else:
@@ -263,7 +263,7 @@ def train():
             log_string("load checkpoint" + FLAGS.pretrained_path+ " starting_epoch: "+ str(starting_epoch))
 
     if torch.cuda.device_count() > 1:
-        model = nn.DataParallel(model)
+        # model = nn.DataParallel(model)
         # net = torch.nn.parallel.DistributedDataParallel(net)
         print("Let's use", torch.cuda.device_count(), "GPUs!")
 
@@ -271,10 +271,10 @@ def train():
     LOG_FOUT.write("\n")
     LOG_FOUT.flush()
 
-    log_string('EVALUATING...')
-    cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(-1) + '.txt'
-    eval_recall = evaluate.evaluate_model(model)
-    log_string('EVAL RECALL: %s' % str(eval_recall))
+    # log_string('EVALUATING...')
+    # cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(-1) + '.txt'
+    # eval_recall = evaluate.evaluate_model(model)
+    # log_string('EVAL RECALL: %s' % str(eval_recall))
 
     for epoch in range(starting_epoch, cfg.MAX_EPOCH):
         log_string('**** EPOCH %03d ****' % (epoch))
@@ -302,7 +302,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
 
     # Shuffle train files
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
-    np.random.shuffle(train_file_idxs)
+    # np.random.shuffle(train_file_idxs)
 
     for i in tqdm(range(len(train_file_idxs)//cfg.BATCH_NUM_QUERIES)):
         # for i in range (5):

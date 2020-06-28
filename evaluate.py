@@ -41,6 +41,11 @@ def evaluate(FLAGS):
 
     model = nn.DataParallel(model)
 
+    # print("model all:")
+    # for name, param in model.named_parameters():
+    #     if name == 'module.point_net.stn.fc2.bias':
+    #         print(param)
+
     print(evaluate_model(model))
 
 
@@ -64,6 +69,7 @@ def evaluate_model(model):
 
     for j in (range(len(QUERY_SETS))):
         QUERY_VECTORS.append(get_latent_vectors(model, QUERY_SETS[j]))
+        # print(np.asarray(QUERY_VECTORS).mean(),np.asarray(QUERY_VECTORS).min(),np.asarray(QUERY_VECTORS).max())
 
     for m in (range(len(QUERY_SETS))):
         for n in range(len(QUERY_SETS)):
@@ -122,6 +128,7 @@ def get_latent_vectors(model, dict_to_process):
             feed_tensor = torch.from_numpy(queries).float()
             feed_tensor = feed_tensor.unsqueeze(1)
             feed_tensor = feed_tensor.to(device)
+            # print(feed_tensor.mean(dim=[0,1,2]))
             out = model(feed_tensor)
 
         out = out.detach().cpu().numpy()
@@ -158,6 +165,7 @@ def get_latent_vectors(model, dict_to_process):
     torch.cuda.empty_cache()
     model.train()
     # print(q_output.shape)
+    # print(q_output.shape, np.asarray(q_output).mean(),np.asarray(q_output).reshape(-1,256).min(),np.asarray(q_output).reshape(-1,256).max())
     return q_output
 
 
@@ -207,11 +215,11 @@ def get_recall(m, n, DATABASE_VECTORS, QUERY_VECTORS, QUERY_SETS):
 if __name__ == "__main__":
     # params
     parser = argparse.ArgumentParser()
-    parser.add_argument('--positives_per_query', type=int, default=4,
+    parser.add_argument('--positives_per_query', type=int, default=2,
                         help='Number of potential positives in each training tuple [default: 2]')
-    parser.add_argument('--negatives_per_query', type=int, default=12,
+    parser.add_argument('--negatives_per_query', type=int, default=18,
                         help='Number of definite negatives in each training tuple [default: 20]')
-    parser.add_argument('--eval_batch_size', type=int, default=12,
+    parser.add_argument('--eval_batch_size', type=int, default=16,
                         help='Batch Size during training [default: 1]')
     parser.add_argument('--dimension', type=int, default=256)
     parser.add_argument('--decay_step', type=int, default=200000,
@@ -224,12 +232,21 @@ if __name__ == "__main__":
                         help='PointNetVlad Dataset Folder')
     parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
                     help='Pretrained model path')
+    parser.add_argument('--seed', type=int, default=1234, metavar='S',
+                            help='random seed (default: 1)')
+
     FLAGS = parser.parse_args()
+
+    torch.backends.cudnn.deterministic = True
+    torch.manual_seed(FLAGS.seed)
+    torch.cuda.manual_seed_all(FLAGS.seed)
+    np.random.seed(FLAGS.seed)
 
     #BATCH_SIZE = FLAGS.batch_size
     #cfg.EVAL_BATCH_SIZE = FLAGS.eval_batch_size
     cfg.NUM_POINTS = 4096
     cfg.FEATURE_OUTPUT_DIM = 256
+    cfg.EVAL_BATCH_SIZE = FLAGS.eval_batch_size
     cfg.EVAL_POSITIVES_PER_QUERY = FLAGS.positives_per_query
     cfg.EVAL_NEGATIVES_PER_QUERY = FLAGS.negatives_per_query
     cfg.DECAY_STEP = FLAGS.decay_step
