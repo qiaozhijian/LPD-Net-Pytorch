@@ -271,11 +271,16 @@ class Oxford_train_advance(Dataset):
         return self.train_len
 
 
-def update_vectors(args, model):
+def update_vectors(args, model, tqdm_flag=True):
     global TRAINING_LATENT_VECTORS
     global TRAINING_QUERIES
 
     torch.cuda.empty_cache()
+
+    if tqdm_flag:
+        fun_tqdm = tqdm
+    else:
+        fun_tqdm = list
 
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
 
@@ -285,7 +290,7 @@ def update_vectors(args, model):
 
     model.eval()
 
-    for q_index in tqdm(range(len(train_file_idxs) // batch_num)):
+    for q_index in fun_tqdm(range(len(train_file_idxs) // batch_num)):
     # for q_index in tqdm(range(batch_num*2 // batch_num)):
         if load_fast:
             file_indices = np.arange(q_index * batch_num, (q_index + 1) * (batch_num))
@@ -313,7 +318,7 @@ def update_vectors(args, model):
     del feed_tensor
 
     # handle edge case
-    for q_index in tqdm(range((len(train_file_idxs) // batch_num * batch_num), len(TRAINING_QUERIES.keys()))):
+    for q_index in fun_tqdm(range((len(train_file_idxs) // batch_num * batch_num), len(TRAINING_QUERIES.keys()))):
         if load_fast:
             queries = TRAINING_POINT_CLOUD[train_file_idxs[q_index]]
             queries = np.expand_dims(np.expand_dims(queries, axis=0), axis=0)
@@ -339,3 +344,8 @@ def update_vectors(args, model):
     TRAINING_LATENT_VECTORS = q_output
     # log_string("Updated cached feature vectors")
     torch.cuda.empty_cache()
+
+    if tqdm_flag:
+        log_string("update all vectors.")
+    else:
+        log_string("update all vectors.", print_flag=False)

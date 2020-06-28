@@ -12,13 +12,17 @@ import inspect
 
 frame = inspect.currentframe()          # define a frame to track
 gpu_tracker = MemTracker(frame)         # define a GPU tracker
-
+cat_or_stack = True #true表示cat
 
 class LPDNet(nn.Module):
-    def __init__(self,emb_dims=512, use_mFea=False,t3d=False,tfea=False,negative_slope=1e-2):
+    def __init__(self,emb_dims=512, use_mFea=False,t3d=True,tfea=False,use_relu = False):
         super(LPDNet, self).__init__()
-        self.negative_slope = negative_slope
+        if use_relu:
+            self.act_f = nn.ReLU
+        else:
+            self.act_f = nn.LeakyReLU(inplace=True)
         self.use_mFea= use_mFea
+        self.negative_slope = 1e-2
         self.k = 20
         self.t3d=t3d
         self.tfea=tfea
@@ -27,12 +31,12 @@ class LPDNet(nn.Module):
             self.t_net3d = TranformNet(3)
         if self.tfea:
             self.t_net_fea = TranformNet(64)
-        self.useBN = False
+        self.useBN = True
         if self.useBN:
             # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
-            self.convDG1 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
-            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
-            self.convSN1 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),nn.BatchNorm2d(256),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
+            self.convDG1 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),self.act_f)
+            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),self.act_f)
+            self.convSN1 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),nn.BatchNorm2d(256),self.act_f)
             # 在一维上进行卷积，临近也是左右概念，类似的，二维卷积，临近有上下左右的概念
             if self.use_mFea:
                 self.conv1_lpd = nn.Conv1d(8, 64, kernel_size=1, bias=False)
@@ -46,9 +50,15 @@ class LPDNet(nn.Module):
             self.bn3_lpd = nn.BatchNorm1d(self.emb_dims)
         else :
             # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
-            self.convDG1 = nn.Sequential(nn.Conv2d(64*1, 128, kernel_size=1, bias=True),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
-            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=True),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
-            self.convSN1 = nn.Sequential(nn.Conv2d(128*1, 256, kernel_size=1, bias=True),nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True))
+            if cat_or_stack:
+                self.convDG1 = nn.Sequential(nn.Conv2d(64*1, 128, kernel_size=1, bias=True),self.act_f)
+            else:
+                self.convDG1 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=True),self.act_f)
+            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=True),self.act_f)
+            if cat_or_stack:
+                self.convSN1 = nn.Sequential(nn.Conv2d(128*1, 256, kernel_size=1, bias=True),self.act_f)
+            else:
+                self.convSN1 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=True),self.act_f)
 
             if self.use_mFea:
                 self.conv1_lpd = nn.Conv1d(8, 64, kernel_size=1, bias=True)
@@ -60,7 +70,6 @@ class LPDNet(nn.Module):
     # input x: # [B,1,num,num_dims]
     # output x: # [b,emb_dims,num,1]
     def forward(self, x):
-        print("")
         #gpu_tracker.track()
         x=torch.squeeze(x,dim=1).transpose(2, 1) # [B,num_dims,num]
         #gpu_tracker.track()
@@ -97,8 +106,10 @@ class LPDNet(nn.Module):
         # Serial structure
         # Danymic Graph cnn for feature space
         #gpu_tracker.track()
-        # x = get_graph_feature(x, k=self.k) # [b,64*2,num,20]
-        x = get_graph_feature(x, k=self.k) # [B, num_dims, num, k+1]
+        if cat_or_stack:
+            x = get_graph_feature(x, k=self.k) # [b,64*2,num,20]
+        else:
+            x = get_graph_feature(x, k=self.k) # [B, num_dims, num, k+1]
         #gpu_tracker.track()
         x = self.convDG1(x) # [b,128,num,20]
         #gpu_tracker.track()
@@ -133,7 +144,7 @@ class LPDNet(nn.Module):
 # TranformNet
 # input x [B,num_dims,num]
 class TranformNet(nn.Module):
-    def __init__(self, k=3, negative_slope=1e-2):
+    def __init__(self, k=3, negative_slope=1e-2, use_relu=True):
         super(TranformNet, self).__init__()
         self.conv1 = torch.nn.Conv1d(k, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
@@ -141,7 +152,10 @@ class TranformNet(nn.Module):
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, k * k)
-        self.relu = nn.LeakyReLU(negative_slope=negative_slope,inplace=True)
+        if use_relu:
+            self.relu = nn.ReLU
+        else:
+            self.relu = nn.LeakyReLU(negative_slope=negative_slope,inplace=True)
 
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(128)
@@ -206,11 +220,15 @@ def get_graph_feature(x, k=20, idx=None):
         feature = x.view(batch_size * num_points, -1)[idx, :]  # (batch_size * num_points * k,num_dims)
         # 统一数组形式
         feature = feature.view(batch_size, num_points, k, num_dims)  # (batch_size, num_points, k, num_dims)
-        # 重复k次，以便k个邻域点每个都能和中心点做运算
-        # x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)  # [B, num, k, num_dims]
-        x = x.view(batch_size, num_points, 1, num_dims)  # [B, num, 1, num_dims]
-        # 领域特征的表示，为(feature - x, x)，这种形式可以详尽参见dgcnn论文
-        feature = torch.cat((feature, x), dim=2).permute(0, 3, 1, 2)     # [B, num_dims, num, k+1]
+        if cat_or_stack:
+            # 重复k次，以便k个邻域点每个都能和中心点做运算
+            x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)  # [B, num, k, num_dims]
+            # 领域特征的表示，为(feature - x, x)，这种形式可以详尽参见dgcnn论文
+            feature = torch.cat((feature, x), dim=3).permute(0, 3, 1, 2)  # [B, num_dims*2, num, k]
+        else:
+            x = x.view(batch_size, num_points, 1, num_dims)  # [B, num, 1, num_dims]
+            # 领域特征的表示，为(feature - x, x)，这种形式可以详尽参见dgcnn论文
+            feature = torch.cat((feature, x), dim=2).permute(0, 3, 1, 2)     # [B, num_dims, num, k+1]
     # del x,idx,idx_base
     return feature
 

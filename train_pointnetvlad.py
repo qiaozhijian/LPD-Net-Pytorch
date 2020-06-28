@@ -18,6 +18,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 cudnn.enabled = True
 division_epoch = 5
+best_ave_one_percent_recall = 0
 
 # os.environ['CUDA_LAUNCH_BLOCKING']="1"
 TOTAL_ITERATIONS = 0
@@ -35,8 +36,8 @@ def get_learning_rate(epoch):
 def train():
     global HARD_NEGATIVES, TOTAL_ITERATIONS
     starting_epoch = 0
-    eval_one_percent_recall = 0
-
+    ave_one_percent_recall = 0
+    
     if para.args.loss_function == 'quadruplet':
         # 有了第二项约束，类内间距离应该比内类距离大
         log_string("use quadruplet_loss")
@@ -89,43 +90,28 @@ def train():
 
     if starting_epoch!=0:
         log_string('EVALUATING first...')
-        eval_one_percent_recall = evaluate.evaluate_model(para.model)
-        log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
-        train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+        ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=True)
+        log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall))
+        train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
     for epoch in range(starting_epoch, para.args.max_epoch):
         log_string('**** EPOCH %03d ****' % (epoch))
         lr_temp = get_learning_rate(epoch)
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr_temp
-        train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall)
+        train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, ave_one_percent_recall)
         # train_one_epoch_old(para.model,optimizer, train_writer, loss_function, epoch)
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
-        eval_one_percent_recall = evaluate.evaluate_model(para.model)
-        log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
+        ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
+        log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall))
 
-        if isinstance(para.model, nn.DataParallel):
-            model_to_save = para.model.module
-        else:
-            model_to_save = para.model
-        save_name = para.args.model_save_path + '/' + str(epoch) + "-" + cfg.MODEL_FILENAME
-        torch.save({
-            'epoch': epoch,
-            'iter': TOTAL_ITERATIONS,
-            'state_dict': model_to_save.state_dict(),
-            'optimizer': optimizer.state_dict(),
-            'recall': eval_one_percent_recall,
-        }, save_name)
-        log_string("Model Saved As " + save_name)
-
+        save_model(epoch, optimizer, ave_one_percent_recall)
         # scheduler.step()
-        # scheduler.step(eval_one_percent_recall)
+        # scheduler.step(ave_one_percent_recall)
+        train_writer.add_scalar("Val Recall", ave_one_percent_recall, epoch)
 
-        train_writer.add_scalar("Val Recall", eval_one_percent_recall, epoch)
-
-
-def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, eval_one_percent_recall):
+def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, ave_one_percent_recall):
     global TOTAL_ITERATIONS
 
     if epoch <= division_epoch:
@@ -144,11 +130,11 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
 
-            if (TOTAL_ITERATIONS % (3600 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
+            if (TOTAL_ITERATIONS % ((600 * (epoch + 1)) // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
                 # log_string('EVALUATING...')
-                eval_one_percent_recall = evaluate.evaluate_model(para.model,save_flag=False)
-                log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
-                train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+                ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
+                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=False)
+                train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
     else:
         if epoch == division_epoch + 1:
@@ -173,14 +159,42 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
             # log_string("train: ",time()-start)
-            if (TOTAL_ITERATIONS % (int(1200 + 300 * (epoch-division_epoch))//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
-                update_vectors(para.args, para.model)
-            if (TOTAL_ITERATIONS % (3600 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
-                # log_string('EVALUATING...')
-                eval_one_percent_recall = evaluate.evaluate_model(para.model,save_flag=False)
-                log_string('EVAL %% RECALL: %s' % str(eval_one_percent_recall))
-                train_writer.add_scalar("one percent recall", eval_one_percent_recall, TOTAL_ITERATIONS)
+            if (TOTAL_ITERATIONS % (int(300 * (epoch + 1))//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
+                update_vectors(para.args, para.model, tqdm_flag=False)
+            if (TOTAL_ITERATIONS % (int(600 * (epoch + 1)) // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
+                ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
+                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=False)
+                train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
+def save_model(epoch, optimizer, ave_one_percent_recall):
+    global best_ave_one_percent_recall
+    if isinstance(para.model, nn.DataParallel):
+        model_to_save = para.model.module
+    else:
+        model_to_save = para.model
+        
+    save_name = para.args.model_save_path + '/' + str(epoch) + "-" + cfg.MODEL_FILENAME
+    torch.save({
+        'epoch': epoch,
+        'iter': TOTAL_ITERATIONS,
+        'state_dict': model_to_save.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'recall': ave_one_percent_recall,
+    }, save_name)
+    log_string("Model Saved As " + save_name)
+    
+    if best_ave_one_percent_recall < ave_one_percent_recall:
+        best_ave_one_percent_recall = ave_one_percent_recall
+        save_name = para.args.model_save_path + '/' + "best"+ "-" + cfg.MODEL_FILENAME
+        torch.save({
+            'epoch': epoch,
+            'iter': TOTAL_ITERATIONS,
+            'state_dict': model_to_save.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'recall': ave_one_percent_recall,
+        }, save_name)
+        log_string("Model Saved As " + save_name)
+    
 
 def run_model(model, queries, positives, negatives, other_neg, require_grad=True):
     # print_gpu("2")
@@ -199,153 +213,9 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
         output, [1, para.args.positives_per_query, para.args.negatives_per_query, 1], dim=1)
     return o1, o2, o3, o4
 
-def train_one_epoch_old(model, optimizer, train_writer, loss_function, epoch):
-    global TOTAL_ITERATIONS
-    from util.data import get_feature_representation,get_query_tuple,get_random_hard_negatives
-    from evaluate import get_latent_vectors
-    is_training = True
-    sampled_neg = 4000
-    # number of hard negatives in the training tuple
-    # which are taken from the sampled negatives
-    num_to_take = 10
-
-    # Shuffle train files
-    train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
-    np.random.shuffle(train_file_idxs)
-
-    for i in range(len(train_file_idxs)//para.args.batch_num_queries):
-        # for i in range (5):
-        batch_keys = train_file_idxs[i *
-                                     para.args.batch_num_queries:(i+1)*para.args.batch_num_queries]
-        q_tuples = []
-
-        faulty_tuple = False
-        no_other_neg = False
-        for j in range(para.args.batch_num_queries):
-            if (len(TRAINING_QUERIES[batch_keys[j]]["positives"]) < para.args.positives_per_query):
-                faulty_tuple = True
-                break
-
-            # no cached feature vectors
-            if (len(datapy.TRAINING_LATENT_VECTORS) == 0):
-                q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], para.args.positives_per_query, para.args.negatives_per_query,
-                                    TRAINING_QUERIES, hard_neg=[], other_neg=True))
-                # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
-                # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
-
-            elif (len(datapy.HARD_NEGATIVES.keys()) == 0):
-                query = get_feature_representation(
-                    TRAINING_QUERIES[batch_keys[j]]['query'], model)
-                random.shuffle(TRAINING_QUERIES[batch_keys[j]]['negatives'])
-                negatives = TRAINING_QUERIES[batch_keys[j]
-                                             ]['negatives'][0:sampled_neg]
-                hard_negs = get_random_hard_negatives(
-                    query, negatives, num_to_take)
-                # print(hard_negs)
-                q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], para.args.positives_per_query, para.args.negatives_per_query,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
-                # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
-                # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
-            else:
-                query = get_feature_representation(
-                    TRAINING_QUERIES[batch_keys[j]]['query'], model)
-                random.shuffle(TRAINING_QUERIES[batch_keys[j]]['negatives'])
-                negatives = TRAINING_QUERIES[batch_keys[j]
-                                             ]['negatives'][0:sampled_neg]
-                hard_negs = get_random_hard_negatives(
-                    query, negatives, num_to_take)
-                hard_negs = list(set().union(
-                    datapy.HARD_NEGATIVES[batch_keys[j]], hard_negs))
-                # print('hard', hard_negs)
-                q_tuples.append(
-                    get_query_tuple(TRAINING_QUERIES[batch_keys[j]], para.args.positives_per_query, para.args.negatives_per_query,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
-                # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
-                # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
-
-            if (q_tuples[j][3].shape[0] != cfg.NUM_POINTS):
-                no_other_neg = True
-                break
-
-        if(faulty_tuple):
-            # log_string('----' + str(i) + '-----')
-            # log_string('----' + 'FAULTY TUPLE' + '-----')
-            continue
-
-        if(no_other_neg):
-            # log_string('----' + str(i) + '-----')
-            # log_string('----' + 'NO OTHER NEG' + '-----')
-            continue
-
-        queries = []
-        positives = []
-        negatives = []
-        other_neg = []
-        for k in range(len(q_tuples)):
-            queries.append(q_tuples[k][0])
-            positives.append(q_tuples[k][1])
-            negatives.append(q_tuples[k][2])
-            other_neg.append(q_tuples[k][3])
-
-        queries = np.array(queries, dtype=np.float32)
-        queries = np.expand_dims(queries, axis=1)
-        other_neg = np.array(other_neg, dtype=np.float32)
-        other_neg = np.expand_dims(other_neg, axis=1)
-        positives = np.array(positives, dtype=np.float32)
-        negatives = np.array(negatives, dtype=np.float32)
-        if (len(queries.shape) != 4):
-
-            log_string('----' + 'FAULTY QUERY' + '-----')
-            log_string(queries.shape)
-            continue
-
-        model.train()
-        optimizer.zero_grad()
-        queries = torch.from_numpy(queries).float()
-        positives = torch.from_numpy(positives).float()
-        negatives = torch.from_numpy(negatives).float()
-        other_neg = torch.from_numpy(other_neg).float()
-        output_queries, output_positives, output_negatives, output_other_neg = run_model(
-            model, queries, positives, negatives, other_neg)
-        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, cfg.MARGIN_1, cfg.MARGIN_2, use_min=False, lazy=True, ignore_zero_loss=False)
-        loss.backward()
-        optimizer.step()
-
-        # log_string('batch loss: %f' % loss)
-        train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
-        TOTAL_ITERATIONS += para.args.batch_num_queries
-
-        # EVALLLL
-
-        if (epoch > 5 and i % (1400 // para.args.batch_num_queries) == 29):
-            datapy.TRAINING_LATENT_VECTORS = get_latent_vectors(
-                model, TRAINING_QUERIES)
-            print("Updated cached feature vectors")
-
-        # if (TOTAL_ITERATIONS % (1000 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
-        #     if isinstance(para.model, nn.DataParallel):
-        #         model_to_save = model.module
-        #     else:
-        #         model_to_save = model
-        #     save_name = para.args.model_save_path + '/' + str(epoch) + "-" + cfg.MODEL_FILENAME
-        #     torch.save({
-        #         'epoch': epoch,
-        #         'iter': TOTAL_ITERATIONS,
-        #         'state_dict': model_to_save.state_dict(),
-        #         'optimizer': optimizer.state_dict(),
-        #     }, save_name)
-        #     log_string("Model Saved As " + save_name)
-
-
 if __name__ == "__main__":
     if para.args.eval:
         log_string("start eval!")
-        #
-        # print_gpu("0")
-        # ave_one_percent_recall = evaluate.evaluate_model(para.model)
-        # print("ave_one_percent_recall: ",ave_one_percent_recall)
         if not os.path.exists(para.args.pretrained_path):
             log_string("can't find pretrained model" + para.args.pretrained_path)
         else:
@@ -369,7 +239,7 @@ if __name__ == "__main__":
         #     if name=='module.point_net.stn.fc2.bias':
         #         print(param)
 
-        ave_one_percent_recall = evaluate.evaluate_model(para.model,save_flag=True)
+        ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=True)
 
         # ave_one_percent_recall = evaluate.evaluate_model2(para.model)
         print("ave_one_percent_recall: ",ave_one_percent_recall)

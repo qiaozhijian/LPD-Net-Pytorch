@@ -1,5 +1,6 @@
-# import torch
-# import torch.nn as nn
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 # import config as cfg
 import pynvml
 import os
@@ -15,15 +16,50 @@ def print_gpu():
     used = meminfo.used / ratio
     print("used: ", used)
 
+class CNN(nn.Module):
+    def __init__(self):
+        super(CNN, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, (3,4), padding=False)  # 输入通道数为1，输出通道数为6
+        self.conv2 = nn.Conv2d(6, 16, 5, padding=True)  # 输入通道数为6，输出通道数为16
+        self.fc1 = nn.Linear(16, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
 
-from datetime import datetime
-from dateutil import tz, zoneinfo
+    def forward(self, x):
+        # 输入x -> conv1 -> relu -> 2x2窗口的最大池化
+        print(x.shape)
+        x = self.conv1(x)
+        print(x.shape)
+        x = F.relu(x)
+        print(x.shape)
+        x = F.max_pool2d(x, 2)
+        print(x.shape)
+        # 输入x -> conv2 -> relu -> 2x2窗口的最大池化
+        x = self.conv2(x)
+        print(x.shape)
+        x = F.relu(x)
+        print(x.shape)
+        x = F.max_pool2d(x, 2)
+        print(x.shape)
+        x = x.permute(0, 2, 3, 1)
+        print(x.shape)
+        x = F.relu(self.fc1(x))
+        print(x.shape)
+        x = F.relu(self.fc2(x))
+        print(x.shape)
+        x = self.fc3(x)
+        print(x.shape)
+        return x
+
 
 if __name__ == '__main__':
-    # use timezone
-    tz_sh = tz.gettz('Asia/Shanghai')
-    # Shanghai timezone
-    now_sh = datetime.now(tz=tz_sh)
-    print(now_sh)
-    now_sh = datetime.now()
-    print(now_sh)
+    conv1 = nn.Conv1d(in_channels=256, out_channels=100, kernel_size=2,padding=True)
+    input = torch.randn(32, 35, 256)
+    input = input.permute(0, 2, 1)
+    output = conv1(input)
+    # print(output.shape)
+
+    input = torch.randn(32,640,480,3)
+    input = input.permute(0, 3, 1, 2)
+    model = CNN()
+    output = model(input)

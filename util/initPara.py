@@ -27,11 +27,11 @@ def print_gpu(s=""):
 parser = argparse.ArgumentParser()
 parser.add_argument('--results_dir', default='results/',
                     help='results dir [default: results]')
-parser.add_argument('--positives_per_query', type=int, default=2,
+parser.add_argument('--positives_per_query', type=int, default=1,
                     help='Number of potential positives in each training tuple [default: 2]')
-parser.add_argument('--negatives_per_query', type=int, default=18,
+parser.add_argument('--negatives_per_query', type=int, default=2,
                     help='Number of definite negatives in each training tuple [default: 18]')
-parser.add_argument('--hard_neg_per_query', type=int, default=10,
+parser.add_argument('--hard_neg_per_query', type=int, default=2,
                     help='Number of definite negatives in each training tuple [default: 10]')
 parser.add_argument('--max_epoch', type=int, default=30,
                     help='Epoch to run [default: 20]')
@@ -83,7 +83,6 @@ parser.add_argument('--seed', type=int, default=1234, metavar='S',
                         help='random seed (default: 1)')
 args = parser.parse_args()
 
-torch.backends.cudnn.deterministic = True
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
 np.random.seed(args.seed)
@@ -119,10 +118,11 @@ if not os.path.exists(cfg.RESULTS_FOLDER):
 LOG_FOUT = open(os.path.join(args.log_dir, 'log_train.txt'), 'w')
 LOG_FOUT.write(str(args) + '\n')
 LOG_FOUT.flush()
-def log_string(out_str):
+def log_string(out_str, print_flag = True):
     LOG_FOUT.write(out_str + '\n')
     LOG_FOUT.flush()
-    print(out_str)
+    if print_flag:
+        print(out_str)
 
 para = sum([np.prod(list(p.size())) for p in model.parameters()])
 # 下面的type_size是4，因为我们的参数是float32也就是4B，4个字节
