@@ -131,11 +131,11 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
 
-            if (TOTAL_ITERATIONS % (6000 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
-                log_string('EVALUATING...', print_flag=False)
-                ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
-                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=False)
-                # train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
+            # if (TOTAL_ITERATIONS % (6000 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
+            #     log_string('EVALUATING...', print_flag=False)
+            #     ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
+            #     log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=False)
+            #     # train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
     else:
         return
@@ -163,10 +163,10 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             # log_string("train: ",time()-start)
             if (TOTAL_ITERATIONS % (int(400 * (epoch + 1))//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
                 update_vectors(para.args, para.model, tqdm_flag=False)
-            if (TOTAL_ITERATIONS % (int(1000 * (epoch + 1)) // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
-                ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
-                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=True)
-                train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
+            # if (TOTAL_ITERATIONS % (int(1000 * (epoch + 1)) // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
+            #     ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
+            #     log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=True)
+            #     train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
 def save_model(epoch, optimizer, ave_one_percent_recall):
     global best_ave_one_percent_recall

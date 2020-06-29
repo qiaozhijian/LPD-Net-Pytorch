@@ -10,3 +10,11 @@ CUDA_VISIBLE_DEVICES=0,1 python train_pointnetvlad.py --featnet=lpdnet --pretrai
 #--eval
 #--eval_batch_size=2
 #--fstn
+
+#--batch_num_queries=2
+#--eval_batch_size=5
+#--fstn
+#--positives_per_query=2
+#--negatives_per_query=10
+#--hard_neg_per_query=6
+#--emb_dims=512
