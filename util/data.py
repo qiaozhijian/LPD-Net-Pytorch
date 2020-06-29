@@ -17,6 +17,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if not para.args.eval:
     TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
     TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
+    # TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE_EASY)
+    # TEST_QUERIES = get_queries_dict(cfg.TEST_FILE_EASY)
 else:
     TRAINING_QUERIES = []
     TEST_QUERIES = []

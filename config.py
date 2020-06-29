@@ -33,6 +33,8 @@ RESUME = False
 
 TRAIN_FILE = 'generating_queries/training_queries_baseline.pickle'
 TEST_FILE = 'generating_queries/test_queries_baseline.pickle'
+TRAIN_FILE_EASY = 'generating_queries/copy/training_queries_baseline.pickle'
+TEST_FILE_EASY = 'generating_queries/copy/test_queries_baseline.pickle'
 
 # LOSS
 LOSS_FUNCTION = 'quadruplet'

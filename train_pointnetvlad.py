@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import sys
 import evaluate
 import loss.pointnetvlad_loss as PNV_loss
@@ -64,7 +66,7 @@ def train():
     else:
         if para.args.pretrained_path[-1]=="7":
             log_string("load pretrained model" + para.args.pretrained_path)
-            para.model.load_state_dict(torch.load(para.args.pretrained_path), strict=True)
+            para.model.load_state_dict(torch.load(para.args.pretrained_path), strict=False)
         else:
             checkpoint = torch.load(para.args.pretrained_path)
             saved_state_dict = checkpoint['state_dict']
@@ -100,10 +102,9 @@ def train():
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr_temp
         train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, ave_one_percent_recall)
-        # train_one_epoch_old(para.model,optimizer, train_writer, loss_function, epoch)
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
-        ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
+        ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=True)
         log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall))
 
         save_model(epoch, optimizer, ave_one_percent_recall)
@@ -130,13 +131,14 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
 
-            if (TOTAL_ITERATIONS % ((600 * (epoch + 1)) // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
-                # log_string('EVALUATING...')
+            if (TOTAL_ITERATIONS % (6000 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
+                log_string('EVALUATING...', print_flag=False)
                 ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
                 log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=False)
-                train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
+                # train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
     else:
+        return
         if epoch == division_epoch + 1:
             update_vectors(para.args, para.model)
         for queries, positives, negatives, other_neg in tqdm(loader_advance):
@@ -159,11 +161,11 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
             # log_string("train: ",time()-start)
-            if (TOTAL_ITERATIONS % (int(300 * (epoch + 1))//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
+            if (TOTAL_ITERATIONS % (int(400 * (epoch + 1))//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
                 update_vectors(para.args, para.model, tqdm_flag=False)
-            if (TOTAL_ITERATIONS % (int(600 * (epoch + 1)) // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
+            if (TOTAL_ITERATIONS % (int(1000 * (epoch + 1)) // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
                 ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
-                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=False)
+                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=True)
                 train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
 def save_model(epoch, optimizer, ave_one_percent_recall):

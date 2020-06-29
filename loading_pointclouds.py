@@ -1,14 +1,17 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import os
 import pickle
 import numpy as np
 import random
 import config as cfg
 from time import time
+from util.initPara import log_string
 def get_queries_dict(filename):
     # key:{'query':file,'positives':[files],'negatives:[files], 'neighbors':[keys]}
     with open(filename, 'rb') as handle:
         queries = pickle.load(handle)
-        print("Queries Loaded.")
+        log_string("Queries Loaded.")
         return queries
 
 
@@ -16,7 +19,7 @@ def get_sets_dict(filename):
     #[key_dataset:{key_pointcloud:{'query':file,'northing':value,'easting':value}},key_dataset:{key_pointcloud:{'query':file,'northing':value,'easting':value}}, ...}
     with open(filename, 'rb') as handle:
         trajectories = pickle.load(handle)
-        print("Sets Loaded.")
+        log_string("Sets Loaded.")
         return trajectories
 
 
@@ -25,7 +28,7 @@ def load_pc_file(filename):
     pc = np.fromfile(os.path.join(cfg.DATASET_FOLDER, filename), dtype=np.float64)
 
     if(pc.shape[0] != 4096*3):
-        print("Error in pointcloud shape")
+        log_string("Error in pointcloud shape")
         return np.array([])
 
     pc = np.reshape(pc,(pc.shape[0]//3, 3))
@@ -35,7 +38,7 @@ def load_pc_file(filename):
 def load_pc_files(filenames):
     pcs = []
     for filename in filenames:
-        # print(filename)
+        # log_string(filename)
         pc = load_pc_file(filename)
         if(pc.shape[0] != 4096):
             continue
@@ -117,7 +120,7 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other
             j += 1
     negatives = load_pc_files(neg_files)
 
-    # print("load time: ",time()-start)
+    # log_string("load time: ",time()-start)
     # 是否需要额外的neg（Quadruplet loss需要）
     if other_neg is False:
         return [query, positives, negatives]

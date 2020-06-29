@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import argparse
 import os
 from datetime import datetime
@@ -91,9 +93,6 @@ cfg.DATASET_FOLDER = args.dataset_folder
 if not os.path.exists(args.log_dir):
     os.mkdir(args.log_dir)
 
-model = PNV.PointNetVlad(feature_transform=args.fstn, num_points=args.num_points, featnet=args.featnet,
-                         emb_dims=args.emb_dims)
-
 if args.eval:
     file = args.pretrained_path
     filename = os.path.basename(file)
@@ -116,17 +115,22 @@ if not os.path.exists(cfg.RESULTS_FOLDER):
     os.makedirs(cfg.RESULTS_FOLDER)
 
 LOG_FOUT = open(os.path.join(args.log_dir, 'log_train.txt'), 'w')
-LOG_FOUT.write(str(args) + '\n')
-LOG_FOUT.flush()
 def log_string(out_str, print_flag = True):
     LOG_FOUT.write(out_str + '\n')
     LOG_FOUT.flush()
     if print_flag:
         print(out_str)
 
+log_string(str(args), print_flag=False)
+if args.featnet=="lpdnet":
+    log_string("use lpdnet")
+elif args.featnet=="pointnet":
+    log_string("use pointnet")
+model = PNV.PointNetVlad(feature_transform=args.fstn, num_points=args.num_points, featnet=args.featnet,
+                         emb_dims=args.emb_dims)
 para = sum([np.prod(list(p.size())) for p in model.parameters()])
 # 下面的type_size是4，因为我们的参数是float32也就是4B，4个字节
-log_string('Model {} : params: {:4f}M'.format(model._get_name(), para * 4 / 1000 / 1000))
+log_string("Model {} : params: {:4f}M".format(model._get_name(), para * 4 / 1000 / 1000))
 
 # 知乎说会节省显存，没啥用
 # model.apply(inplace_relu)

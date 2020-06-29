@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import argparse
 import os
 import sys
@@ -69,23 +71,23 @@ def evaluate_model(model, tqdm_flag=True):
 
     ave_recall = recall / count
     if tqdm_flag:
-        log_string("average_similarity_score: ",ave_recall)
+        log_string("ave_recall: "+str(ave_recall))
     else:
-        log_string("average_similarity_score: ",ave_recall, print_flag=False)
+        log_string("ave_recall: "+str(ave_recall), print_flag=False)
 
 
     # print(similarity)
     average_similarity_score = np.mean(similarity)
     if tqdm_flag:
-        log_string("average_similarity_score: ",average_similarity_score)
+        log_string("average_similarity_score: "+str(average_similarity_score))
     else:
-        log_string("average_similarity_score: ",average_similarity_score, print_flag=False)
+        log_string("average_similarity_score: "+str(average_similarity_score), print_flag=False)
     #
     ave_one_percent_recall = np.mean(one_percent_recall)
     if tqdm_flag:
-        log_string("ave_one_percent_recall: ",ave_one_percent_recall)
+        log_string("ave_one_percent_recall: "+str(ave_one_percent_recall))
     else:
-        log_string("ave_one_percent_recall: ",ave_one_percent_recall, print_flag=False)
+        log_string("ave_one_percent_recall: "+str(ave_one_percent_recall), print_flag=False)
 
     return ave_recall, average_similarity_score, ave_one_percent_recall
 
@@ -122,6 +124,8 @@ def get_latent_vectors(model, dict_to_process):
         #out = np.vstack((o1, o2, o3, o4))
         q_output.append(out)
 
+    del feed_tensor
+
     q_output = np.array(q_output)
     if(len(q_output) != 0):
         q_output = q_output.reshape(-1, q_output.shape[-1])
@@ -139,16 +143,17 @@ def get_latent_vectors(model, dict_to_process):
             feed_tensor = torch.from_numpy(queries).float()
             feed_tensor = feed_tensor.unsqueeze(1)
             feed_tensor = feed_tensor.to(device)
-            o1 = model(feed_tensor)
+            output = model(feed_tensor)
 
         # del feed_tensor
-        output = o1.detach().cpu().numpy()
+        output = output.detach().cpu().numpy()
         output = np.squeeze(output)
         if (q_output.shape[0] != 0):
             q_output = np.vstack((q_output, output))
         else:
             q_output = output
 
+    del feed_tensor
     torch.cuda.empty_cache()
     model.train()
     # print(q_output.shape)

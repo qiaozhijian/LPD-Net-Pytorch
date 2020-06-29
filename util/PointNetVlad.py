@@ -245,11 +245,9 @@ class PointNetVlad(nn.Module):
     def __init__(self, num_points=4096, global_feat=True, feature_transform=False, max_pool=False, output_dim=256, emb_dims = 1024, featnet = "lpdnet"):
         super(PointNetVlad, self).__init__()
         if featnet == "lpdnet":
-            print("use lpdnet")
-            self.point_net = LPDNet(emb_dims=emb_dims, tfea=feature_transform)
+            self.emb_nn = LPDNet(emb_dims=emb_dims, tfea=feature_transform)
         elif featnet == "pointnet":
-            print("use pointnet")
-            self.point_net = PointNetfeat(num_points=num_points, global_feat=global_feat,
+            self.emb_nn = PointNetfeat(num_points=num_points, global_feat=global_feat,
                                       feature_transform=feature_transform, max_pool=max_pool, emb_dims = emb_dims)
         else:
             print("featnet error")
@@ -259,7 +257,7 @@ class PointNetVlad(nn.Module):
 
     def forward(self, x):
         # print("input x: ",x.shape)
-        x = self.point_net(x)
+        x = self.emb_nn(x)
         # print("point_net x: ", x.shape)
         x = self.net_vlad(x)
         # print("net_vlad x: ", x.shape) [B, output_dim]
