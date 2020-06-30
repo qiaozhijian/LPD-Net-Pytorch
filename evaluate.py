@@ -125,8 +125,6 @@ def get_latent_vectors(model, dict_to_process):
         #out = np.vstack((o1, o2, o3, o4))
         q_output.append(out)
 
-    del feed_tensor
-
     q_output = np.array(q_output)
     if(len(q_output) != 0):
         q_output = q_output.reshape(-1, q_output.shape[-1])
@@ -154,7 +152,6 @@ def get_latent_vectors(model, dict_to_process):
         else:
             q_output = output
 
-    del feed_tensor
     torch.cuda.empty_cache()
     model.train()
     # print(q_output.shape)
