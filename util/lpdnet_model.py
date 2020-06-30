@@ -12,17 +12,17 @@ import inspect
 
 frame = inspect.currentframe()          # define a frame to track
 gpu_tracker = MemTracker(frame)         # define a GPU tracker
-cat_or_stack = True #true表示cat
 
+cat_or_stack = True  # true表示cat
 class LPDNet(nn.Module):
     def __init__(self,emb_dims=512, use_mFea=False,t3d=True,tfea=False,use_relu = False):
         super(LPDNet, self).__init__()
-        if use_relu:
-            self.act_f = nn.ReLU
-        else:
-            self.act_f = nn.LeakyReLU(inplace=True)
-        self.use_mFea= use_mFea
         self.negative_slope = 1e-2
+        if use_relu:
+            self.act_f = nn.ReLU(inplace=True)
+        else:
+            self.act_f = nn.LeakyReLU(negative_slope=self.negative_slope,inplace=True)
+        self.use_mFea= use_mFea
         self.k = 20
         self.t3d=t3d
         self.tfea=tfea
@@ -34,9 +34,14 @@ class LPDNet(nn.Module):
         self.useBN = True
         if self.useBN:
             # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
-            self.convDG1 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),self.act_f)
-            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),self.act_f)
-            self.convSN1 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),nn.BatchNorm2d(256),self.act_f)
+            if cat_or_stack:
+                self.convDG1 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),self.act_f)
+                self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),self.act_f)
+                self.convSN1 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),nn.BatchNorm2d(256),self.act_f)
+            else:
+                self.convDG1 = nn.Sequential(nn.Conv2d(64*1, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),self.act_f)
+                self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=False),nn.BatchNorm2d(128),self.act_f)
+                self.convSN1 = nn.Sequential(nn.Conv2d(128*1, 256, kernel_size=1, bias=False),nn.BatchNorm2d(256),self.act_f)
             # 在一维上进行卷积，临近也是左右概念，类似的，二维卷积，临近有上下左右的概念
             if self.use_mFea:
                 self.conv1_lpd = nn.Conv1d(8, 64, kernel_size=1, bias=False)
@@ -51,15 +56,13 @@ class LPDNet(nn.Module):
         else :
             # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
             if cat_or_stack:
-                self.convDG1 = nn.Sequential(nn.Conv2d(64*1, 128, kernel_size=1, bias=True),self.act_f)
-            else:
                 self.convDG1 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=True),self.act_f)
-            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=True),self.act_f)
-            if cat_or_stack:
-                self.convSN1 = nn.Sequential(nn.Conv2d(128*1, 256, kernel_size=1, bias=True),self.act_f)
-            else:
+                self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=True),self.act_f)
                 self.convSN1 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=True),self.act_f)
-
+            else:
+                self.convDG1 = nn.Sequential(nn.Conv2d(64*1, 128, kernel_size=1, bias=True),self.act_f)
+                self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=True),self.act_f)
+                self.convSN1 = nn.Sequential(nn.Conv2d(128*1, 256, kernel_size=1, bias=True),self.act_f)
             if self.use_mFea:
                 self.conv1_lpd = nn.Conv1d(8, 64, kernel_size=1, bias=True)
             else:
@@ -91,11 +94,11 @@ class LPDNet(nn.Module):
                 trans = self.t_net3d(x)
                 x = torch.bmm(x.transpose(2, 1), trans).transpose(2, 1)
         if self.useBN:
-            x = F.leaky_relu(self.bn1_lpd(self.conv1_lpd(x)),negative_slope=self.negative_slope,inplace=True)
-            x = F.leaky_relu(self.bn2_lpd(self.conv2_lpd(x)),negative_slope=self.negative_slope,inplace=True)
+            x = self.act_f(self.bn1_lpd(self.conv1_lpd(x)))
+            x = self.act_f(self.bn2_lpd(self.conv2_lpd(x)))
         else:
-            x = F.leaky_relu(self.conv1_lpd(x),negative_slope=self.negative_slope,inplace=True)
-            x = F.leaky_relu(self.conv2_lpd(x),negative_slope=self.negative_slope,inplace=True)
+            x = self.act_f(self.conv1_lpd(x))
+            x = self.act_f(self.conv2_lpd(x))
 
         if self.tfea:
             trans_feat = self.t_net_fea(x)
@@ -133,9 +136,9 @@ class LPDNet(nn.Module):
         x = torch.cat((x1, x2, x3), dim=1).squeeze(-1) # [b,512,num]
         #gpu_tracker.track()
         if self.useBN:
-            x = F.leaky_relu(self.bn3_lpd(self.conv3_lpd(x)),negative_slope=self.negative_slope,inplace=True).view(batch_size, -1, num_points) # [b,emb_dims,num]
+            x = self.act_f(self.bn3_lpd(self.conv3_lpd(x))).view(batch_size, -1, num_points) # [b,emb_dims,num]
         else:
-            x = F.leaky_relu(self.conv3_lpd(x),negative_slope=self.negative_slope,inplace=True).view(batch_size, -1, num_points) # [b,emb_dims,num]
+            x = self.act_f(self.conv3_lpd(x)).view(batch_size, -1, num_points) # [b,emb_dims,num]
         # [b,emb_dims,num]
         x = x.unsqueeze(-1)
         # [b,emb_dims,num,1]

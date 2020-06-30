@@ -69,7 +69,8 @@ def evaluate_model(model, tqdm_flag=True):
             for x in pair_similarity:
                 similarity.append(x)
 
-    ave_recall = recall / count
+    # 不求均值就可以得到@N的recall
+    ave_recall = np.mean(recall / count)
     if tqdm_flag:
         log_string("ave_recall: "+str(ave_recall))
     else:

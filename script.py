@@ -53,13 +53,11 @@ class CNN(nn.Module):
 
 
 if __name__ == '__main__':
-    conv1 = nn.Conv1d(in_channels=256, out_channels=100, kernel_size=2,padding=True)
-    input = torch.randn(32, 35, 256)
-    input = input.permute(0, 2, 1)
-    output = conv1(input)
-    # print(output.shape)
 
-    input = torch.randn(32,640,480,3)
-    input = input.permute(0, 3, 1, 2)
-    model = CNN()
-    output = model(input)
+    input = torch.tensor(range(12))
+    input = input.view(1,3,4)
+    print(input)
+    input1 = input.view(1,4,3)
+    print(input1)
+    input2 = input.view(1,4,3)
+    print(input2)
