@@ -13,8 +13,128 @@ import inspect
 frame = inspect.currentframe()  # define a frame to track
 gpu_tracker = MemTracker(frame)  # define a GPU tracker
 
+# 探究领域特征应该拼接还是stack
 cat_or_stack = True  # true表示cat
+class LPDNetOrign(nn.Module):
+    def __init__(self, emb_dims=512, use_mFea=False, t3d=True, tfea=False, use_relu=False):
+        super(LPDNetOrign, self).__init__()
+        self.negative_slope = 1e-2
+        if use_relu:
+            self.act_f = nn.ReLU(inplace=True)
+        else:
+            self.act_f = nn.LeakyReLU(negative_slope=self.negative_slope, inplace=True)
+        self.use_mFea = use_mFea
+        if self.use_mFea:
+            initFeaNum = 8
+        else:
+            initFeaNum = 3
+        self.k = 20
+        self.t3d = t3d
+        self.tfea = tfea
+        self.emb_dims = emb_dims
+        if self.t3d:
+            self.t_net3d = TranformNet(3)
+        if self.tfea:
+            self.t_net_fea = TranformNet(64)
+        self.useBN = True
+        if self.useBN:
+            # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
+            self.convDG1 = nn.Sequential(nn.Conv2d(64 * 2, 64, kernel_size=1, bias=False), nn.BatchNorm2d(64),self.act_f)
+            self.convDG2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=False), nn.BatchNorm2d(64),self.act_f)
+            self.convSN1 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=False), nn.BatchNorm2d(64),self.act_f)
+            self.convSN2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=False), nn.BatchNorm2d(64),self.act_f)
+            # 在一维上进行卷积，临近也是左右概念，类似的，二维卷积，临近有上下左右的概念 # 在relu之前进行batchNorm避免梯度消失，同时使分布不一直在变化
+            self.conv1_lpd = nn.Sequential(nn.Conv1d(initFeaNum, 64, kernel_size=1, bias=False), nn.BatchNorm1d(64), self.act_f)
+            self.conv2_lpd = nn.Sequential(nn.Conv1d(64, 64, kernel_size=1, bias=False), nn.BatchNorm1d(64), self.act_f)
+            self.conv3_lpd = nn.Sequential(nn.Conv1d(512, self.emb_dims, kernel_size=1, bias=False), nn.BatchNorm1d(self.emb_dims), self.act_f)
+        else:
+            # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
+            self.convDG1 = nn.Sequential(nn.Conv2d(64 * 2, 128, kernel_size=1, bias=True), self.act_f)
+            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=True), self.act_f)
+            self.convSN1 = nn.Sequential(nn.Conv2d(128 * 2, 256, kernel_size=1, bias=True), self.act_f)
+            self.conv1_lpd = nn.Sequential(nn.Conv1d(initFeaNum, 64, kernel_size=1, bias=True), self.act_f)
+            self.conv2_lpd = nn.Sequential(nn.Conv1d(64, 64, kernel_size=1, bias=True), self.act_f)
+            self.conv3_lpd = nn.Sequential(nn.Conv1d(512, self.emb_dims, kernel_size=1, bias=True), self.act_f)
+    # input x: # [B,1,num,num_dims]
+    # output x: # [b,emb_dims,num,1]
+    def forward(self, x):
+        x = torch.squeeze(x, dim=1).transpose(2, 1)  # [B,num_dims,num]
+        batch_size, num_dims, num_points = x.size()
+        # 单独对坐标进行T-Net旋转
+        if num_dims > 3 or self.use_mFea:
+            x, feature = x.transpose(2, 1).split([3, 5], dim=2)  # [B,num,3]  [B,num,num_dims-3]
+            xInit3d = x.transpose(2, 1)
+            # 是否进行3D坐标旋转
+            if self.t3d:
+                trans = self.t_net3d(x.transpose(2, 1))
+                x = torch.bmm(x, trans)
+                x = torch.cat([x, feature], dim=2).transpose(2, 1)  # [B,num_dims,num]
+            else:
+                x = torch.cat([x, feature], dim=2).transpose(2, 1)  # [B,num_dims,num]
+        else:
+            xInit3d = x
+            if self.t3d:
+                trans = self.t_net3d(x)
+                x = torch.bmm(x.transpose(2, 1), trans).transpose(2, 1)
 
+        x = self.conv1_lpd(x)
+        x = self.conv2_lpd(x)
+
+        if self.tfea:
+            trans_feat = self.t_net_fea(x)
+            x = x.transpose(2, 1)
+            x = torch.bmm(x, trans_feat)
+            x = x.transpose(2, 1)
+
+        # Serial structure
+        # Danymic Graph cnn for feature space
+        x = get_graph_feature_Origin(x, k=self.k)  # [b,64*2,num,20]
+        x = self.convDG1(x)  # [b,64,num,20]
+        x = self.convDG2(x)  # [b,64,num,20]
+        x = x.max(dim=-1, keepdim=True)[0]  # [b,64,num,1]
+
+        # Spatial Neighborhood fusion for cartesian space
+        idx = knn(xInit3d, k=self.k)
+        x = get_graph_feature_Origin(x, idx=idx, k=self.k, cat=False)  # [b,64,num,20]
+        x = self.convSN1(x)  # [b,64,num,20]
+        x = self.convSN2(x)  # [b,64,num,20]
+        x = x.max(dim=-1, keepdim=True)[0]  # [b,64,num,1]
+
+        x = self.conv3_lpd(x)  # [b,emb_dims,num]
+        x = x.unsqueeze(-1) # [b,emb_dims,num,1]
+
+        return x
+
+def get_graph_feature_Origin(x, k=20, idx=None, cat = True):
+    batch_size = x.size(0)
+    num_points = x.size(2)
+    x = x.view(batch_size, -1, num_points)
+    if idx is None:
+        idx = knn(x, k=k)  # (batch_size, num_points, k)
+
+    device = torch.device('cuda')
+    # 获得索引阶梯数组
+    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1,
+                                                               1) * num_points  # (batch_size, 1, 1) [0 num_points ... num_points*(B-1)]
+    # 以batch为单位，加到索引上
+    idx = idx + idx_base  # (batch_size, num_points, k)
+    # 展成一维数组，方便后续索引
+    idx = idx.view(-1)  # (batch_size * num_points * k)
+    # 获得特征维度
+    _, num_dims, _ = x.size()
+    x = x.transpose(2, 1).contiguous()  # (batch_size, num_points, num_dims)
+    # 改变x的shape，方便索引。被索引数组是所有batch的所有点的特征，索引数组idx为所有临近点对应的序号，从而索引出所有领域点的特征
+    feature = x.view(batch_size * num_points, -1)[idx, :]  # (batch_size * num_points * k,num_dims)
+    # 统一数组形式
+    feature = feature.view(batch_size, num_points, k, num_dims)  # (batch_size, num_points, k, num_dims)
+    if cat:
+        # 重复k次，以便k个邻域点每个都能和中心点做运算
+        x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)  # [B, num, k, num_dims]
+        # 领域特征的表示，为(feature - x, x)，这种形式可以详尽参见dgcnn论文
+        feature = torch.cat((feature, x), dim=3).permute(0, 3, 1, 2)  # [B, num_dims*2, num, k]
+    else:
+        feature = feature.permute(0, 3, 1, 2)
+    return feature
 
 class LPDNet(nn.Module):
     def __init__(self, emb_dims=512, use_mFea=False, t3d=True, tfea=False, use_relu=False):
@@ -81,9 +201,7 @@ class LPDNet(nn.Module):
     # input x: # [B,1,num,num_dims]
     # output x: # [b,emb_dims,num,1]
     def forward(self, x):
-        # gpu_tracker.track()
         x = torch.squeeze(x, dim=1).transpose(2, 1)  # [B,num_dims,num]
-        # gpu_tracker.track()
         batch_size, num_dims, num_points = x.size()
         # 单独对坐标进行T-Net旋转
         if num_dims > 3 or self.use_mFea:
@@ -116,33 +234,22 @@ class LPDNet(nn.Module):
 
         # Serial structure
         # Danymic Graph cnn for feature space
-        # gpu_tracker.track()
         if cat_or_stack:
             x = get_graph_feature(x, k=self.k)  # [b,64*2,num,20]
         else:
             x = get_graph_feature(x, k=self.k)  # [B, num_dims, num, k+1]
-        # gpu_tracker.track()
         x = self.convDG1(x)  # [b,128,num,20]
-        # gpu_tracker.track()
         x1 = x.max(dim=-1, keepdim=True)[0]  # [b,128,num,1]
-        # gpu_tracker.track()
         x = self.convDG2(x)  # [b,128,num,20]
-        # gpu_tracker.track()
         x2 = x.max(dim=-1, keepdim=True)[0]  # [b,128,num,1]
-        # gpu_tracker.track()
 
         # Spatial Neighborhood fusion for cartesian space
         idx = knn(xInit3d, k=self.k)
-        # gpu_tracker.track()
         x = get_graph_feature(x2, idx=idx, k=self.k)  # [b,128*2,num,20]
-        # gpu_tracker.track()
         x = self.convSN1(x)  # [b,256,num,20]
-        # gpu_tracker.track()
         x3 = x.max(dim=-1, keepdim=True)[0]  # [b,256,num,1]
-        # gpu_tracker.track()
 
         x = torch.cat((x1, x2, x3), dim=1).squeeze(-1)  # [b,512,num]
-        # gpu_tracker.track()
         if self.useBN:
             x = self.act_f(self.bn3_lpd(self.conv3_lpd(x))) # [b,emb_dims,num]
         else:
