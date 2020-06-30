@@ -46,15 +46,21 @@ class LPDNetOrign(nn.Module):
             # 在一维上进行卷积，临近也是左右概念，类似的，二维卷积，临近有上下左右的概念 # 在relu之前进行batchNorm避免梯度消失，同时使分布不一直在变化
             self.conv1_lpd = nn.Sequential(nn.Conv1d(initFeaNum, 64, kernel_size=1, bias=False), nn.BatchNorm1d(64), self.act_f)
             self.conv2_lpd = nn.Sequential(nn.Conv1d(64, 64, kernel_size=1, bias=False), nn.BatchNorm1d(64), self.act_f)
-            self.conv3_lpd = nn.Sequential(nn.Conv1d(512, self.emb_dims, kernel_size=1, bias=False), nn.BatchNorm1d(self.emb_dims), self.act_f)
+            self.conv3_lpd = nn.Sequential(nn.Conv1d(64, 64, kernel_size=1, bias=False), nn.BatchNorm1d(64), self.act_f)
+            self.conv4_lpd = nn.Sequential(nn.Conv1d(64, 128, kernel_size=1, bias=False), nn.BatchNorm1d(128), self.act_f)
+            self.conv5_lpd = nn.Sequential(nn.Conv1d(128, self.emb_dims, kernel_size=1, bias=False), nn.BatchNorm1d(self.emb_dims), self.act_f)
         else:
             # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
-            self.convDG1 = nn.Sequential(nn.Conv2d(64 * 2, 128, kernel_size=1, bias=True), self.act_f)
-            self.convDG2 = nn.Sequential(nn.Conv2d(128, 128, kernel_size=1, bias=True), self.act_f)
-            self.convSN1 = nn.Sequential(nn.Conv2d(128 * 2, 256, kernel_size=1, bias=True), self.act_f)
+            self.convDG1 = nn.Sequential(nn.Conv2d(64 * 2, 64, kernel_size=1, bias=True),self.act_f)
+            self.convDG2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=True),self.act_f)
+            self.convSN1 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=True),self.act_f)
+            self.convSN2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=True),self.act_f)
+            # 在一维上进行卷积，临近也是左右概念，类似的，二维卷积，临近有上下左右的概念 # 在relu之前进行batchNorm避免梯度消失，同时使分布不一直在变化
             self.conv1_lpd = nn.Sequential(nn.Conv1d(initFeaNum, 64, kernel_size=1, bias=True), self.act_f)
             self.conv2_lpd = nn.Sequential(nn.Conv1d(64, 64, kernel_size=1, bias=True), self.act_f)
-            self.conv3_lpd = nn.Sequential(nn.Conv1d(512, self.emb_dims, kernel_size=1, bias=True), self.act_f)
+            self.conv3_lpd = nn.Sequential(nn.Conv1d(64, 64, kernel_size=1, bias=True), self.act_f)
+            self.conv4_lpd = nn.Sequential(nn.Conv1d(64, 128, kernel_size=1, bias=True), self.act_f)
+            self.conv5_lpd = nn.Sequential(nn.Conv1d(128, self.emb_dims, kernel_size=1, bias=True), self.act_f)
     # input x: # [B,1,num,num_dims]
     # output x: # [b,emb_dims,num,1]
     def forward(self, x):
@@ -98,9 +104,11 @@ class LPDNetOrign(nn.Module):
         x = get_graph_feature_Origin(x, idx=idx, k=self.k, cat=False)  # [b,64,num,20]
         x = self.convSN1(x)  # [b,64,num,20]
         x = self.convSN2(x)  # [b,64,num,20]
-        x = x.max(dim=-1, keepdim=True)[0]  # [b,64,num,1]
+        x = x.max(dim=-1, keepdim=True)[0].squeeze(-1)  # [b,64,num]
 
-        x = self.conv3_lpd(x)  # [b,emb_dims,num]
+        x = self.conv3_lpd(x)  # [b,64,num]
+        x = self.conv4_lpd(x)  # [b,128,num]
+        x = self.conv5_lpd(x)  # [b,emb_dims,num]
         x = x.unsqueeze(-1) # [b,emb_dims,num,1]
 
         return x
