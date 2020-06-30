@@ -75,20 +75,26 @@ def train():
             para.model.load_state_dict(saved_state_dict, strict=True)
             optimizer.load_state_dict(checkpoint['optimizer'])
             log_string("load checkpoint" + para.args.pretrained_path+ " starting_epoch: "+ str(starting_epoch))
+
     if torch.cuda.device_count() > 1:
-        para.model = nn.DataParallel(para.model)
+        # device_ids不填了，因为服务器就俩gpu都用
+        para.model = nn.parallel.DistributedDataParallel(para.model)
         log_string("Let's use "+ str(torch.cuda.device_count())+ " GPUs!")
+        train_sampler = torch.utils.data.distributed.DistributedSampler(Oxford_train_base(args=para.args))
+        loader_base = torch.utils.data.DataLoader(Oxford_train_base(args=para.args), batch_size=para.args.batch_num_queries, shuffle=False, pin_memory=True, sampler=train_sampler)
+        train_sampler_advance = torch.utils.data.distributed.DistributedSampler(Oxford_train_advance(args=para.args))
+        loader_advance = torch.utils.data.DataLoader(Oxford_train_advance(args=para.args), batch_size=para.args.batch_num_queries, shuffle=False, pin_memory=True, sampler=train_sampler_advance)
+    else:
+        loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
+        loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
+
     if starting_epoch > division_epoch + 1:
         update_vectors(para.args, para.model)
-
+    train_writer = SummaryWriter(os.path.join(para.args.log_dir, 'train_writer'))
+    # print_gpu("1")
     # scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
     # recall 停止上升时
     # scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.2, patience=1, verbose=True)
-
-    train_writer = SummaryWriter(os.path.join(para.args.log_dir, 'train_writer'))
-    # print_gpu("1")
-    loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
-    loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
 
     if starting_epoch!=0:
         log_string('EVALUATING first...')
