@@ -135,7 +135,7 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             if (TOTAL_ITERATIONS % (6000 // batch_num * batch_num) == 0):
                 log_string('EVALUATING...', print_flag=False)
                 ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
-                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=False)
+                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=True)
                 # train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
     else:
