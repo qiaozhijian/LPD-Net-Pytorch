@@ -77,16 +77,11 @@ def train():
             log_string("load checkpoint" + para.args.pretrained_path+ " starting_epoch: "+ str(starting_epoch))
 
     if torch.cuda.device_count() > 1:
-        # device_ids不填了，因为服务器就俩gpu都用
-        para.model = nn.parallel.DistributedDataParallel(para.model)
+        para.model = nn.parallel.DataParallel(para.model)
         log_string("Let's use "+ str(torch.cuda.device_count())+ " GPUs!")
-        train_sampler = torch.utils.data.distributed.DistributedSampler(Oxford_train_base(args=para.args))
-        loader_base = torch.utils.data.DataLoader(Oxford_train_base(args=para.args), batch_size=para.args.batch_num_queries, shuffle=False, pin_memory=True, sampler=train_sampler)
-        train_sampler_advance = torch.utils.data.distributed.DistributedSampler(Oxford_train_advance(args=para.args))
-        loader_advance = torch.utils.data.DataLoader(Oxford_train_advance(args=para.args), batch_size=para.args.batch_num_queries, shuffle=False, pin_memory=True, sampler=train_sampler_advance)
-    else:
-        loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
-        loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
+
+    loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
+    loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
 
     if starting_epoch > division_epoch + 1:
         update_vectors(para.args, para.model)
@@ -120,7 +115,7 @@ def train():
 
 def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, loader_advance, ave_one_percent_recall):
     global TOTAL_ITERATIONS
-
+    batch_num = para.args.batch_num_queries
     if epoch <= division_epoch:
         for queries, positives, negatives, other_neg in tqdm(loader_base):
             para.model.train()
@@ -135,13 +130,13 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("epoch", epoch, TOTAL_ITERATIONS)
             train_writer.add_scalar("Loss", loss.cpu().item(), TOTAL_ITERATIONS)
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
-            TOTAL_ITERATIONS += para.args.batch_num_queries
+            TOTAL_ITERATIONS += batch_num
 
-            # if (TOTAL_ITERATIONS % (6000 // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
-            #     log_string('EVALUATING...', print_flag=False)
-            #     ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
-            #     log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=False)
-            #     # train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
+            if (TOTAL_ITERATIONS % (6000 // batch_num * batch_num) == 0):
+                log_string('EVALUATING...', print_flag=False)
+                ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
+                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=False)
+                # train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
     else:
         return
@@ -167,12 +162,12 @@ def train_one_epoch(optimizer, train_writer, loss_function, epoch, loader_base, 
             train_writer.add_scalar("learn rate", optimizer.param_groups[0]['lr'], TOTAL_ITERATIONS)
             TOTAL_ITERATIONS += para.args.batch_num_queries
             # log_string("train: ",time()-start)
-            if (TOTAL_ITERATIONS % (int(400 * (epoch + 1))//para.args.batch_num_queries*para.args.batch_num_queries) ==0):
+            if (TOTAL_ITERATIONS % (int(700 * (epoch + 1))//batch_num*batch_num) ==0):
                 update_vectors(para.args, para.model, tqdm_flag=False)
-            # if (TOTAL_ITERATIONS % (int(1000 * (epoch + 1)) // para.args.batch_num_queries * para.args.batch_num_queries) == 0):
-            #     ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
-            #     log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=True)
-            #     train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
+            if (TOTAL_ITERATIONS % (int(1000 * (epoch + 1)) // batch_num * batch_num) == 0):
+                ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=False)
+                log_string('EVAL %% RECALL: %s' % str(ave_one_percent_recall), print_flag=True)
+                train_writer.add_scalar("one percent recall", ave_one_percent_recall, TOTAL_ITERATIONS)
 
 def save_model(epoch, optimizer, ave_one_percent_recall):
     global best_ave_one_percent_recall

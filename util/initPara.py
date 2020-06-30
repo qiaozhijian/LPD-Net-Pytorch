@@ -88,7 +88,6 @@ parser.add_argument('--local_rank', default=-1, type=int,help='node rank for dis
 args = parser.parse_args()
 
 # 初始化使用的后端
-torch.distributed.init_process_group(backend="nccl")
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
 np.random.seed(args.seed)

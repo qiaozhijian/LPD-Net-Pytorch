@@ -15,10 +15,10 @@ from tqdm import tqdm
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load dictionary of training queries
 if not para.args.eval:
-    TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
-    TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
-    # TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE_EASY)
-    # TEST_QUERIES = get_queries_dict(cfg.TEST_FILE_EASY)
+    # TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
+    # TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
+    TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE_EASY)
+    TEST_QUERIES = get_queries_dict(cfg.TEST_FILE_EASY)
 else:
     TRAINING_QUERIES = []
     TEST_QUERIES = []
@@ -144,6 +144,7 @@ class Oxford_train_base(Dataset):
         log_string('Load Oxford Dataset')
         # self.data, self.label = []
         self.last = []
+        print(self.train_len)
     def __getitem__(self, item):
         if (len(TRAINING_QUERIES[item]["positives"]) < self.positives_per_query):
             if self.last==[]:
