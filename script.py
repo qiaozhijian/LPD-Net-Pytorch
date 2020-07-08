@@ -51,13 +51,11 @@ class CNN(nn.Module):
         print(x.shape)
         return x
 
-
+def get_learning_rate(epoch):
+    learning_rate = 0.001*(0.922680834591**epoch)
+    learning_rate = max(learning_rate, 0.00001) # CLIP THE LEARNING RATE!
+    return learning_rate
 if __name__ == '__main__':
 
-    input = torch.tensor(range(12))
-    input = input.view(1,3,4)
-    print(input)
-    input1 = input.view(1,4,3)
-    print(input1)
-    input2 = input.view(1,4,3)
-    print(input2)
+    a=get_learning_rate(10)
+    print(a)

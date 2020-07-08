@@ -11,4 +11,6 @@ CUDA_VISIBLE_DEVICES=0,1 python train_pointnetvlad.py --featnet=lpdnet --pretrai
 #--eval_batch_size=2
 #--fstn
 
+#1024 0.001学习率,发散
+
 CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 train_pointnetvlad.py --batch_num_queries=2 --eval_batch_size=5 --fstn --positives_per_query=2 --negatives_per_query=10 --hard_neg_per_query=6 --emb_dims=512

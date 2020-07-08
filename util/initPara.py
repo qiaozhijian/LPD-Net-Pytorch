@@ -75,7 +75,7 @@ parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
                     help='feature net')
 parser.add_argument('--fstn', action='store_true', default=False,
                     help='feature transform')
-parser.add_argument('--lr', type=float, default=0.00005, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                         help='learning rate (min: 0.00001, 0.1 if using sgd)')
 parser.add_argument('--emb_dims', type=int, default=1024)
 parser.add_argument('--eval', action='store_true', default=False,
@@ -91,6 +91,9 @@ args = parser.parse_args()
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
 np.random.seed(args.seed)
+
+torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.deterministic = True
 
 cfg.DATASET_FOLDER = args.dataset_folder
 if not os.path.exists(args.log_dir):
@@ -126,14 +129,14 @@ def log_string(out_str, print_flag = True):
 
 log_string(str(args), print_flag=False)
 if args.featnet=="lpdnet":
-    log_string("use lpdnet")
+    print("use lpdnet")
 elif args.featnet=="pointnet":
-    log_string("use pointnet")
+    print("use pointnet")
 model = PNV.PointNetVlad(feature_transform=args.fstn, num_points=args.num_points, featnet=args.featnet,
                          emb_dims=args.emb_dims)
 para = sum([np.prod(list(p.size())) for p in model.parameters()])
 # 下面的type_size是4，因为我们的参数是float32也就是4B，4个字节
-log_string("Model {} : params: {:4f}M".format(model._get_name(), para * 4 / 1000 / 1000))
+print(str("Model {} : params: {:4f}M".format(model._get_name(), para * 4 / 1000 / 1000)))
 
 # 知乎说会节省显存，没啥用
 # model.apply(inplace_relu)
@@ -156,3 +159,12 @@ BASE_LEARNING_RATE = args.lr
 # import operator
 # log_string(operator.eq(list(parameters),list(parameters2)))
 # log_string(set(list(parameters)).difference(set(list(parameters2))))
+
+
+# --batch_num_queries=2
+# --eval_batch_size=4
+# --fstn
+# --positives_per_query=2
+# --negatives_per_query=6
+# --hard_neg_per_query=4
+# --emb_dims=512

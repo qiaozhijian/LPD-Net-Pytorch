@@ -70,7 +70,7 @@ def evaluate_model(model, tqdm_flag=True):
                 similarity.append(x)
 
     # 不求均值就可以得到@N的recall
-    ave_recall = np.mean(recall / count)
+    ave_recall = np.mean(np.mean(recall / count))
     if tqdm_flag:
         log_string("ave_recall: "+str(ave_recall))
     else:
