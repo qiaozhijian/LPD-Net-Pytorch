@@ -10,6 +10,7 @@ CUDA_VISIBLE_DEVICES=0,1 python train_pointnetvlad.py --featnet=lpdnet --pretrai
 #--eval
 #--eval_batch_size=2
 #--fstn
+#--xyzstn
 
 #1024 0.001学习率,发散
 

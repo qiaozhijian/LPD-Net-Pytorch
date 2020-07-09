@@ -75,6 +75,8 @@ parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
                     help='feature net')
 parser.add_argument('--fstn', action='store_true', default=False,
                     help='feature transform')
+parser.add_argument('--xyzstn', action='store_true', default=False,
+                    help='feature transform')
 parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                         help='learning rate (min: 0.00001, 0.1 if using sgd)')
 parser.add_argument('--emb_dims', type=int, default=1024)
@@ -133,7 +135,7 @@ if args.featnet=="lpdnet":
 elif args.featnet=="pointnet":
     print("use pointnet")
 model = PNV.PointNetVlad(feature_transform=args.fstn, num_points=args.num_points, featnet=args.featnet,
-                         emb_dims=args.emb_dims)
+                         emb_dims=args.emb_dims,xyz_trans=args.xyzstn)
 para = sum([np.prod(list(p.size())) for p in model.parameters()])
 # 下面的type_size是4，因为我们的参数是float32也就是4B，4个字节
 print(str("Model {} : params: {:4f}M".format(model._get_name(), para * 4 / 1000 / 1000)))

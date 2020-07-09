@@ -242,13 +242,15 @@ class PointNetfeat(nn.Module):
 
 
 class PointNetVlad(nn.Module):
-    def __init__(self, num_points=4096, global_feat=True, feature_transform=False, max_pool=False, output_dim=256, emb_dims = 1024, featnet = "lpdnet"):
+    def __init__(self, num_points=4096, global_feat=True, feature_transform=False, max_pool=False, output_dim=256, emb_dims = 1024, featnet = "lpdnet", xyz_trans=False):
         super(PointNetVlad, self).__init__()
         if featnet == "lpdnet":
-            self.emb_nn = LPDNet(emb_dims=emb_dims, tfea=feature_transform)
+            self.emb_nn = LPDNet(emb_dims=emb_dims, tfea=feature_transform, t3d=xyz_trans)
         elif featnet == "pointnet":
             self.emb_nn = PointNetfeat(num_points=num_points, global_feat=global_feat,
                                       feature_transform=feature_transform, max_pool=max_pool, emb_dims = emb_dims)
+        elif featnet == "lpdnetorigin":
+            self.emb_nn = LPDNetOrign(emb_dims=emb_dims, tfea=feature_transform, t3d=xyz_trans)
         else:
             print("featnet error")
         self.net_vlad = NetVLADLoupe(feature_size=emb_dims, max_samples=num_points, cluster_size=64,
