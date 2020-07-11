@@ -46,9 +46,9 @@ class LPDNetOrign(nn.Module):
             # 在一维上进行卷积，临近也是左右概念，类似的，二维卷积，临近有上下左右的概念 # 在relu之前进行batchNorm避免梯度消失，同时使分布不一直在变化
             self.conv1_lpd = nn.Sequential(nn.Conv1d(initFeaNum, 64, kernel_size=1, bias=False), nn.BatchNorm1d(64), self.act_f)
             self.conv2_lpd = nn.Sequential(nn.Conv1d(64, 64, kernel_size=1, bias=False), nn.BatchNorm1d(64), self.act_f)
-            self.conv3_lpd = nn.Sequential(nn.Conv1d(64, 128, kernel_size=1, bias=False), nn.BatchNorm1d(64), self.act_f)
-            self.conv4_lpd = nn.Sequential(nn.Conv1d(128, 512, kernel_size=1, bias=False), nn.BatchNorm1d(128), self.act_f)
-            self.conv5_lpd = nn.Sequential(nn.Conv1d(512, self.emb_dims, kernel_size=1, bias=False), nn.BatchNorm1d(self.emb_dims), self.act_f)
+            self.conv3_lpd = nn.Sequential(nn.Conv1d(64, 64, kernel_size=1, bias=False), nn.BatchNorm1d(64), self.act_f)
+            self.conv4_lpd = nn.Sequential(nn.Conv1d(64, 128, kernel_size=1, bias=False), nn.BatchNorm1d(128), self.act_f)
+            self.conv5_lpd = nn.Sequential(nn.Conv1d(128, self.emb_dims, kernel_size=1, bias=False), nn.BatchNorm1d(self.emb_dims), self.act_f)
         else:
             # [b,6,num,20] 输入 # 激活函数换成Leaky ReLU? 因为加了BN，所以bias可以舍弃
             self.convDG1 = nn.Sequential(nn.Conv2d(64 * 2, 64, kernel_size=1, bias=True),self.act_f)

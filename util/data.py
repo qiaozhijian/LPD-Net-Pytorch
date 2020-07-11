@@ -287,7 +287,7 @@ def update_vectors(args, model, tqdm_flag=True):
 
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
 
-    batch_num = args.eval_batch_size * (1 + args.positives_per_query + args.negatives_per_query + 1)
+    batch_num = args.eval_batch_size * (1 + args.positives_per_query + args.negatives_per_query)
     # log_string("\n args: ",args.batch_num_queries,args.positives_per_query,args.negatives_per_query)
     q_output = []
 
