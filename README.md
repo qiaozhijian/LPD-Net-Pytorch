@@ -1,4 +1,4 @@
-# PCPR-Net
+# LPD-Net
 Refer to [PointNetVlad](https://github.com/mikacuy/pointnetvlad) and [LPD-Net](https://github.com/Suoivy/LPD-net)
 
 ### Pre-Requisites

@@ -17,7 +17,6 @@ data/
 *.ckpt.*
 *.pyc
 *.out.*
-/models/pretrained/
 /benchmark_datasets/
 benchmark_datasets
 *benchmark_datasets*
