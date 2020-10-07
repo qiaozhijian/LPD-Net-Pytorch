@@ -1,5 +1,5 @@
 # PCPR-Net
-该代码改自[PointNetVlad](https://github.com/mikacuy/pointnetvlad)， 并参考借鉴了[LPD-Net](https://github.com/Suoivy/LPD-net)
+Refer to [PointNetVlad](https://github.com/mikacuy/pointnetvlad) and [LPD-Net](https://github.com/Suoivy/LPD-net)
 
 ### Pre-Requisites
 * PyTorch 1.4.0
@@ -42,12 +42,12 @@ python generate_test_sets.py
 
 ### Train
 ```
-python train_pointnetvlad.py
+python train_pointnetvlad.py --batch_num_queries=2 --pretrained_path=./pretrained/lpdnet.ckpt
 ```
 
 ### Evaluate
 ```
-python evaluate.py
+python train_pointnetvlad.py --eval_batch_size=5 --eval --pretrained_path=./pretrained/lpdnet.ckpt
 ```
 
 Take a look atinitPara for more parameters

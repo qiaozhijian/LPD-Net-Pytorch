@@ -80,8 +80,8 @@ def train():
         para.model = nn.parallel.DataParallel(para.model)
         log_string("Let's use "+ str(torch.cuda.device_count())+ " GPUs!")
 
-    loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
-    loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True)
+    loader_base = DataLoader(Oxford_train_base(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True, num_workers=4)
+    loader_advance = DataLoader(Oxford_train_advance(args=para.args),batch_size=para.args.batch_num_queries, shuffle=False, drop_last=True, num_workers=4)
 
     if starting_epoch > division_epoch + 1:
         update_vectors(para.args, para.model)
@@ -244,7 +244,6 @@ if __name__ == "__main__":
 
         ave_recall, average_similarity_score, ave_one_percent_recall = evaluate.evaluate_model(para.model, tqdm_flag=True)
 
-        # ave_one_percent_recall = evaluate.evaluate_model2(para.model)
         print("ave_one_percent_recall: ",ave_one_percent_recall)
     else:
         train()

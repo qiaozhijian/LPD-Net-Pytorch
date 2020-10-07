@@ -71,7 +71,7 @@ parser.add_argument('--dataset_folder', default='./benchmark_datasets/',
                     help='PointNetVlad Dataset Folder')
 parser.add_argument('--pretrained_path', type=str, default='', metavar='N',
                     help='Pretrained model path')
-parser.add_argument('--featnet', type=str, default='lpdnet', metavar='N',
+parser.add_argument('--featnet', type=str, default='lpdnetorigin', metavar='N',
                     help='feature net')
 parser.add_argument('--fstn', action='store_true', default=False,
                     help='feature transform')

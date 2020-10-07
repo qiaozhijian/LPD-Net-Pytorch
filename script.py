@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 # import config as cfg
-import pynvml
+import pynvml 
+import util.initPara as para
+
 import os
 # from torch.autograd import Variable
 # import numpy as np
@@ -56,6 +58,24 @@ def get_learning_rate(epoch):
     learning_rate = max(learning_rate, 0.00001) # CLIP THE LEARNING RATE!
     return learning_rate
 if __name__ == '__main__':
+    
+    checkpoint = torch.load('./pretrained/lpdnet.ckpt')
+    saved_state_dict = checkpoint['state_dict']
+    epoch = checkpoint['epoch']
+    TOTAL_ITERATIONS = checkpoint['iter']
+    ave_one_percent_recall = checkpoint['recall']
+    para.model.load_state_dict(saved_state_dict, strict=True)
 
-    a=get_learning_rate(10)
-    print(a)
+    if isinstance(para.model, nn.DataParallel):
+        model_to_save = para.model.module
+    else:
+        model_to_save = para.model
+
+    save_name = para.args.model_save_path + '/' + 'lpdnet.ckpt'
+    torch.save({
+        'epoch': epoch,
+        'iter': TOTAL_ITERATIONS,
+        'state_dict': model_to_save.state_dict(),
+        'optimizer': None,
+        'recall': ave_one_percent_recall,
+    }, save_name)

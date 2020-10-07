@@ -395,7 +395,7 @@ class LPD(nn.Module):
         src_embedding_k = src_embedding[:, :, :k]
         tgt_embedding_k = tgt_embedding[:, :, :k]
         _, num_dims, _ = tgt_embedding_k.size()
-
+        nn.TripletMarginLoss
         # 找到相距较远的点
         inner = -2 * torch.matmul(src.transpose(2, 1).contiguous(), src)  # [b,num,num]
         xx = torch.sum(src ** 2, dim=1, keepdim=True)  # [b,1,num] #x ** 2 表示点平方而不是x*x
@@ -403,6 +403,7 @@ class LPD(nn.Module):
         pairwise_distance = xx + inner
         pairwise_distance = pairwise_distance + xx.transpose(2, 1).contiguous()  # [b,num,num]
 
+        # 每k个找到nk个最远的
         idx = pairwise_distance.topk(k=nk, dim=-1)[1]  # (batch_size, k, nk)
         # 获得索引阶梯数组
         idx_base = torch.arange(0, batch_size, device=torch.device('cuda')).view(-1, 1,
@@ -412,6 +413,7 @@ class LPD(nn.Module):
         # 展成一维数组，方便后续索引
         idx = idx.view(-1)  # (batch_size * k * nk)
         # 改变x的shape，方便索引。被索引数组是所有batch的所有点的特征，索引数组idx为所有临近点对应的序号，从而索引出所有领域点的特征
+        # 取出目标点云对应的最远nk个点的特征
         topFarTgt = tgt_embedding_k.transpose(2, 1).contiguous().view(batch_size * k, -1)[idx,
                     :]  # (batch_size * k * nk,num_dims)
         # 统一数组形式
