@@ -47,6 +47,7 @@ python train_pointnetvlad.py --batch_num_queries=2 --pretrained_path=./pretraine
 
 ### Evaluate
 ```
+python train_pointnetvlad.py --featnet=pointnet --batch_num_queries=1 --eval_batch_size=2 --pretrained_path=./pretrained/pointnet.ckpt --eval
 python train_pointnetvlad.py --eval_batch_size=5 --eval --pretrained_path=./pretrained/lpdnet.ckpt
 ```
 

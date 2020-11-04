@@ -7,8 +7,8 @@ import torch
 import numpy as np
 import config as cfg
 import util.PointNetVlad as PNV
-import pynvml
 from dateutil import tz
+import pynvml
 
 pynvml.nvmlInit()
 handle0 = pynvml.nvmlDeviceGetHandleByIndex(0)

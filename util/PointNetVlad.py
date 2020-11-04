@@ -247,7 +247,8 @@ class PointNetVlad(nn.Module):
         if featnet == "lpdnet":
             self.emb_nn = LPDNet(emb_dims=emb_dims, tfea=feature_transform, t3d=xyz_trans)
         elif featnet == "pointnet":
-            self.emb_nn = PointNetfeat(num_points=num_points, global_feat=global_feat,
+            self.emb_nn = None
+            self.point_net = PointNetfeat(num_points=num_points, global_feat=global_feat,
                                       feature_transform=feature_transform, max_pool=max_pool, emb_dims = emb_dims)
         elif featnet == "lpdnetorigin":
             self.emb_nn = LPDNetOrign(emb_dims=emb_dims, tfea=feature_transform, t3d=xyz_trans)
@@ -259,7 +260,10 @@ class PointNetVlad(nn.Module):
 
     def forward(self, x):
         # print("input x: ",x.shape)
-        x = self.emb_nn(x)
+        if self.emb_nn is not None:
+            x = self.emb_nn(x)
+        else:
+            x = self.point_net(x)
         # print("point_net x: ", x.shape)
         x = self.net_vlad(x)
         # print("net_vlad x: ", x.shape) [B, output_dim]
